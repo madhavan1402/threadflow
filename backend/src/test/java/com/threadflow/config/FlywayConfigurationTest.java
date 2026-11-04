@@ -19,8 +19,10 @@ class FlywayConfigurationTest {
     @Test
     void initialMigrationIsRecorded() {
         MigrationInfo[] applied = flyway.info().applied();
-        assertTrue(applied.length >= 1);
+        assertTrue(applied.length >= 2);
         assertTrue(java.util.Arrays.stream(applied)
                 .anyMatch(migration -> "1".equals(migration.getVersion().getVersion())));
+        assertTrue(java.util.Arrays.stream(applied)
+                .anyMatch(migration -> "2".equals(migration.getVersion().getVersion())));
     }
 }

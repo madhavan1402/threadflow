@@ -9,3 +9,13 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  h2:
+    console:
+      enabled: false
+threadflow:
+  jwt:
+    secret: test-only-jwt-signing-secret-with-at-least-32-characters
+    expiration-minutes: 30
+  cookie:
+    secure: false
+    same-site: Lax

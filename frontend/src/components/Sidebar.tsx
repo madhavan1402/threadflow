@@ -1,4 +1,5 @@
-import { Boxes, Factory, LayoutDashboard } from 'lucide-react';
+import { Boxes, Factory, LayoutDashboard, LogOut } from 'lucide-react';
+import type { UserRole } from '../auth/auth';
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, target: '#overview' },
@@ -6,7 +7,25 @@ const navItems = [
   { label: 'Production', icon: Factory, target: '#production' },
 ];
 
-export function Sidebar({ menuOpen, onClose }: { menuOpen: boolean; onClose: () => void }) {
+export function Sidebar({
+  menuOpen,
+  onClose,
+  roles,
+  email,
+  onLogout,
+}: {
+  menuOpen: boolean;
+  onClose: () => void;
+  roles: UserRole[];
+  email: string;
+  onLogout: () => void;
+}) {
+  const roleLabel = roles.includes('MERCHANDISER') ? 'Merchandising' : 'Production';
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.label === 'Orders') return roles.includes('MERCHANDISER');
+    if (item.label === 'Production') return roles.includes('SUPERVISOR');
+    return true;
+  });
   return (
     <>
       {menuOpen && <button className="menu-backdrop" aria-label="Close menu" onClick={onClose} />}
@@ -24,7 +43,7 @@ export function Sidebar({ menuOpen, onClose }: { menuOpen: boolean; onClose: () 
         </div>
         <nav className="nav" aria-label="Primary navigation">
           <p className="nav-group">Workspace</p>
-          {navItems.map((item, index) => {
+          {visibleNavItems.map((item, index) => {
             const Icon = item.icon;
             return (
               <a
@@ -42,9 +61,12 @@ export function Sidebar({ menuOpen, onClose }: { menuOpen: boolean; onClose: () 
         <div className="sidebar-profile">
           <div className="profile-avatar">MN</div>
           <div>
-            <strong>M. Natarajan</strong>
-            <span>Merchandising lead</span>
+            <strong>{email}</strong>
+            <span>{roleLabel}</span>
           </div>
+          <button className="profile-logout" type="button" aria-label="Log out" onClick={onLogout}>
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
     </>
