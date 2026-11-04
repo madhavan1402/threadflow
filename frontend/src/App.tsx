@@ -1,87 +1,113 @@
-import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, ArrowUpRight, Bell, Boxes, CalendarDays, CheckCircle2, ChevronDown, Factory, Menu, Plus, Search, Shirt, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { MetricStrip } from './components/MetricStrip';
+import { OrderTable, type Order } from './components/OrderTable';
 
-type Health = { status: string; service: string; timestamp: string };
-
-const orders = [
-  { po: 'B-PO-88213', buyer: 'Company B · UK', style: "Men's crew neck tee", unit: 'Unit 01 · Tiruppur', stage: 'Stitching', done: 6800, total: 12000, due: '20 Nov 2026', status: 'amber' },
-  { po: 'B-PO-88240', buyer: 'Company B · UK', style: "Men's polo", unit: 'Unit 02 · Tiruppur', stage: 'Finishing', done: 5200, total: 8000, due: '12 Nov 2026', status: 'red' },
-  { po: 'C-PO-0488', buyer: 'Company C · Germany', style: 'Kids printed tee', unit: 'Partner · Printing', stage: 'Printing', done: 3100, total: 10000, due: '28 Nov 2026', status: 'green' },
+const sampleOrders: Order[] = [
+  { po: 'TF-88213', buyer: 'North & Loom · UK', style: "Men's crew neck tee", unit: 'Unit 01 · Tiruppur', stage: 'Stitching', completed: 6800, total: 12000, due: '2026-11-20', status: 'amber', note: 'முன்னேற்பாடு செய்து இருங்கள்' },
+  { po: 'TF-88240', buyer: 'Nordic Basics · Sweden', style: "Men's polo shirt", unit: 'Unit 02 · Tiruppur', stage: 'Finishing', completed: 5200, total: 8000, due: '2026-11-12', status: 'red', note: 'நகலம் confirm பண்ணிடுங்க' },
+  { po: 'TF-04881', buyer: 'Werkhaus · Germany', style: 'Kids printed tee', unit: 'Print partner · Tiruppur', stage: 'Printing', completed: 3100, total: 10000, due: '2026-11-28', status: 'green', note: 'Print approval வந்தாச்சு' },
+  { po: 'TF-88404', buyer: 'Knitfolk · Netherlands', style: "Women's rib cardigan", unit: 'Unit 04 · Tiruppur', stage: 'Knit', completed: 4200, total: 6000, due: '2026-12-02', status: 'green', note: 'Gauge sample approved' },
+  { po: 'TF-88417', buyer: 'North & Loom · UK', style: 'Organic polo', unit: 'Unit 06 · Tiruppur', stage: 'Cutting', completed: 2800, total: 7000, due: '2026-11-18', status: 'amber', note: 'Fabric width issue கட்டுப்பாட்டில்' },
+  { po: 'TF-88502', buyer: 'Werkhaus · Germany', style: 'Ladies henley', unit: 'Unit 03 · Tiruppur', stage: 'QC & packing', completed: 5900, total: 6000, due: '2026-11-14', status: 'green', note: 'Carton packing இன்று தொடங்கும்' },
+  { po: 'TF-88519', buyer: 'Nordic Basics · Sweden', style: 'Boys striped tee', unit: 'Unit 05 · Tiruppur', stage: 'Stitching', completed: 2400, total: 9000, due: '2026-11-25', status: 'green', note: 'Stripe yarn allocation done' },
+  { po: 'TF-88573', buyer: 'Knitfolk · Netherlands', style: 'Heavyweight sweatshirt', unit: 'Unit 01 · Tiruppur', stage: 'Dyeing', completed: 1800, total: 5000, due: '2026-12-08', status: 'amber', note: 'Shade review pending' },
 ];
 
+export type ViewState = 'ready' | 'loading' | 'empty' | 'error';
+
 function App() {
-  const [apiStatus, setApiStatus] = useState<'checking' | 'connected' | 'offline'>('checking');
+  const [viewState, setViewState] = useState<ViewState>('ready');
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | Order['status']>('all');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((response) => {
-        if (!response.ok) throw new Error('API unavailable');
-        return response.json() as Promise<Health>;
-      })
-      .then(() => setApiStatus('connected'))
-      .catch(() => setApiStatus('offline'));
-  }, []);
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(''), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
-  const filteredOrders = orders.filter((order) =>
-    `${order.po} ${order.buyer} ${order.style}`.toLowerCase().includes(query.toLowerCase()),
-  );
+  const filteredOrders = useMemo(() => sampleOrders.filter((order) => {
+    const matchesQuery = `${order.po} ${order.buyer} ${order.style} ${order.note}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    return matchesQuery && matchesStatus;
+  }), [query, statusFilter]);
+
+  const statusCounts = useMemo(() => ({
+    green: sampleOrders.filter((order) => order.status === 'green').length,
+    amber: sampleOrders.filter((order) => order.status === 'amber').length,
+    red: sampleOrders.filter((order) => order.status === 'red').length,
+  }), []);
+
+  const refresh = () => {
+    setViewState('loading');
+    window.setTimeout(() => {
+      setViewState('ready');
+      setToast('Production snapshot refreshed');
+    }, 650);
+  };
+
+  const retry = () => {
+    setViewState('loading');
+    window.setTimeout(() => setViewState('ready'), 650);
+  };
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><Shirt size={20} /></div><span>threadflow</span></div>
-        <div className="workspace-label">WORKSPACE</div>
-        <nav>
-          <a className="nav-item active"><Activity size={18} /> Overview</a>
-          <a className="nav-item"><Boxes size={18} /> Orders <span className="nav-count">24</span></a>
-          <a className="nav-item"><Factory size={18} /> Production</a>
-          <a className="nav-item"><CalendarDays size={18} /> TNA calendar</a>
-          <a className="nav-item"><Users size={18} /> Buyers</a>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="profile-avatar">MN</div>
-          <div><strong>Merchandising team</strong><small>Demo workspace</small></div>
-          <ChevronDown size={15} />
-        </div>
-      </aside>
+      <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      <div className="workspace">
+        <Header
+          onMenu={() => setMenuOpen(true)}
+          onRefresh={refresh}
+          viewState={viewState}
+          onViewStateChange={setViewState}
+        />
+        <main className="workspace-main" id="overview">
+          <div className="title-row">
+            <div>
+              <p className="title-context">Production workspace · Tiruppur</p>
+              <h1>Production overview</h1>
+              <p className="title-finding">
+                Two orders need attention before the next planning review.
+              </p>
+            </div>
+            <button
+              className="primary-action"
+              type="button"
+              onClick={() => {
+                setToast('Order creation is available after backend setup');
+              }}
+            >
+              Create order
+            </button>
+          </div>
 
-      <main className="main">
-        <header className="topbar">
-          <button className="mobile-menu" aria-label="Open menu"><Menu size={20}/></button>
-          <div className="breadcrumb">Workspace <span>/</span> Overview</div>
-          <div className="top-actions"><span className={`api-pill ${apiStatus}`}><i /> API {apiStatus === 'connected' ? 'connected' : apiStatus === 'offline' ? 'offline' : 'checking'}</span><button className="icon-button" aria-label="Notifications"><Bell size={18}/></button><div className="profile-avatar small">MN</div></div>
-        </header>
+          <MetricStrip total={sampleOrders.length} counts={statusCounts} />
 
-        <section className="page-heading">
-          <div><div className="eyebrow">MONDAY, 03 NOVEMBER 2026</div><h1>Good morning, team <span>✳</span></h1><p>Here's what's happening across your production floor today.</p></div>
-          <button className="primary-button"><Plus size={17}/> Create order</button>
-        </section>
-
-        <section className="metric-grid">
-          <Metric label="Active orders" value="24" change="+3 this week" icon={<Boxes size={18}/>} />
-          <Metric label="On track" value="18" change="75% of active orders" icon={<CheckCircle2 size={18}/>} tone="green"/>
-          <Metric label="At risk" value="4" change="Needs attention" icon={<AlertTriangle size={18}/>} tone="amber"/>
-          <Metric label="Delayed" value="2" change="Requires action today" icon={<Activity size={18}/>} tone="red"/>
-        </section>
-
-        <section className="content-card">
-          <div className="section-head"><div><h2>Production overview</h2><p>Track order progress and identify delays early.</p></div><button className="secondary-button">View all orders <ArrowUpRight size={15}/></button></div>
-          <div className="table-toolbar"><div className="search-box"><Search size={16}/><input aria-label="Search orders" placeholder="Search PO, buyer or style..." value={query} onChange={(e) => setQuery(e.target.value)}/></div><button className="filter-button">All statuses <ChevronDown size={15}/></button></div>
-          <div className="table-wrap"><table><thead><tr><th>ORDER / STYLE</th><th>BUYER</th><th>STAGE</th><th>PRODUCTION</th><th>EX-FACTORY</th><th>STATUS</th></tr></thead><tbody>
-            {filteredOrders.map((order) => <tr key={order.po}><td><strong>{order.po}</strong><small>{order.style}</small></td><td>{order.buyer}<small>{order.unit}</small></td><td>{order.stage}</td><td><div className="progress-label"><span>{order.done.toLocaleString()} / {order.total.toLocaleString()}</span><b>{Math.round(order.done / order.total * 100)}%</b></div><div className="progress-track"><div className={`progress-fill ${order.status}`} style={{width: `${order.done / order.total * 100}%`}}/></div></td><td>{order.due}</td><td><span className={`status ${order.status}`}><i/>{order.status === 'green' ? 'On track' : order.status === 'amber' ? 'At risk' : 'Delayed'}</span></td></tr>)}
-            {filteredOrders.length === 0 && <tr><td colSpan={6} className="empty-state">No orders match your search.</td></tr>}
-          </tbody></table></div>
-          <div className="table-footer">Showing {filteredOrders.length} of 3 seeded orders <span>Updated just now</span></div>
-        </section>
-        <footer>ThreadFlow <span>·</span> Production intelligence for every stitch.</footer>
-      </main>
+          <OrderTable
+            orders={filteredOrders}
+            totalOrders={sampleOrders.length}
+            viewState={viewState}
+            query={query}
+            statusFilter={statusFilter}
+            onQueryChange={setQuery}
+            onStatusFilterChange={setStatusFilter}
+            onRetry={retry}
+            onClearFilters={() => {
+              setQuery('');
+              setStatusFilter('all');
+            }}
+          />
+        </main>
+      </div>
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
-}
-
-function Metric({ label, value, change, icon, tone = 'neutral' }: { label: string; value: string; change: string; icon: React.ReactNode; tone?: string }) {
-  return <article className="metric-card"><div className={`metric-icon ${tone}`}>{icon}</div><div className="metric-label">{label}</div><div className="metric-value">{value}</div><div className="metric-change">{change}</div></article>;
 }
 
 export default App;
