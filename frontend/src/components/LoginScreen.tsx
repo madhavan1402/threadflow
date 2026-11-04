@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff, LockKeyhole } from 'lucide-react';
-import { AuthApiError, login, validateLogin } from '../auth/auth';
+import { AuthApiError, getDefaultWorkspaceHash, login, validateLogin } from '../auth/auth';
 import { useAuth } from '../auth/AuthProvider';
 
 export function LoginScreen() {
@@ -23,6 +23,7 @@ export function LoginScreen() {
     try {
       const user = await login(email.trim(), password);
       setUser(user);
+      window.location.hash = getDefaultWorkspaceHash(user.roles);
     } catch (error) {
       if (error instanceof AuthApiError) {
         if (error.status === 401) setServerError(error.message || 'Email or password is incorrect.');
@@ -43,14 +44,27 @@ export function LoginScreen() {
           <strong>ThreadFlow</strong>
         </div>
         <div className="login-production-note">
-          <p>Production floor</p>
           <strong>Every order, from yarn to dispatch.</strong>
+          <p>Production intelligence for knitwear exports.</p>
+          <ul className="login-highlights" aria-label="ThreadFlow capabilities">
+            <li>Order tracking</li>
+            <li>Production progress</li>
+            <li>Delay intelligence</li>
+          </ul>
         </div>
+        <a
+          className="login-photo-credit"
+          href="https://commons.wikimedia.org/wiki/File:Garment_factory_in_Bangladesh_Women_working.jpg"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Garment factory photograph by Tareq Salahuddin, CC BY 2.0
+        </a>
       </section>
       <section className="login-form-panel">
         <form className="login-form" onSubmit={submit} noValidate>
           <div className="login-heading">
-            <div className="login-lock"><LockKeyhole size={18} /></div>
+            <div className="login-lock" aria-hidden="true"><LockKeyhole size={18} /></div>
             <h1>Sign in to ThreadFlow</h1>
             <p>Use your ThreadFlow workspace account.</p>
           </div>

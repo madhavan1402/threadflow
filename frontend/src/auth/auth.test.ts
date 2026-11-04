@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateLogin } from './auth';
+import { getDefaultWorkspaceHash, isWorkspaceAllowed, validateLogin } from './auth';
 
 describe('login form validation', () => {
   it('requires email and password', () => {
@@ -17,5 +17,28 @@ describe('login form validation', () => {
 
   it('accepts valid login fields', () => {
     expect(validateLogin('merch@threadflow.local', 'correct-password')).toEqual({});
+  });
+});
+
+describe('role workspaces', () => {
+  it('redirects merchandisers to orders', () => {
+    expect(getDefaultWorkspaceHash(['MERCHANDISER'])).toBe('#orders');
+  });
+
+  it('redirects supervisors to production', () => {
+    expect(getDefaultWorkspaceHash(['SUPERVISOR'])).toBe('#production');
+  });
+
+  it('blocks supervisor access to orders', () => {
+    expect(isWorkspaceAllowed('#orders', ['SUPERVISOR'])).toBe(false);
+  });
+
+  it('blocks merchandiser access to production', () => {
+    expect(isWorkspaceAllowed('#production', ['MERCHANDISER'])).toBe(false);
+  });
+
+  it('allows overview only as a shared workspace', () => {
+    expect(isWorkspaceAllowed('#overview', ['SUPERVISOR'])).toBe(true);
+    expect(isWorkspaceAllowed('#overview', ['MERCHANDISER'])).toBe(true);
   });
 });

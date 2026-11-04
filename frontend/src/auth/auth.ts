@@ -79,3 +79,15 @@ export function validateLogin(email: string, password: string) {
   if (!password) errors.password = 'Password is required';
   return errors;
 }
+
+export function getDefaultWorkspaceHash(roles: UserRole[]) {
+  return roles.includes('MERCHANDISER') ? '#orders' : '#production';
+}
+
+export function isWorkspaceAllowed(hash: string, roles: UserRole[]) {
+  const route = hash || '#overview';
+  if (route === '#overview') return true;
+  if (route === '#orders') return roles.includes('MERCHANDISER');
+  if (route === '#production') return roles.includes('SUPERVISOR');
+  return false;
+}

@@ -13,14 +13,17 @@ export function Sidebar({
   roles,
   email,
   onLogout,
+  activeHash,
 }: {
   menuOpen: boolean;
   onClose: () => void;
   roles: UserRole[];
   email: string;
   onLogout: () => void;
+  activeHash: string;
 }) {
-  const roleLabel = roles.includes('MERCHANDISER') ? 'Merchandising' : 'Production';
+  const isMerchandiser = roles.includes('MERCHANDISER');
+  const roleLabel = isMerchandiser ? 'Merchandising' : 'Production';
   const visibleNavItems = navItems.filter((item) => {
     if (item.label === 'Orders') return roles.includes('MERCHANDISER');
     if (item.label === 'Production') return roles.includes('SUPERVISOR');
@@ -37,7 +40,7 @@ export function Sidebar({
         <div className="workspace-switcher">
           <div className="workspace-monogram">TF</div>
           <div>
-            <strong>Merchandising</strong>
+            <strong>{isMerchandiser ? 'Merchandising' : 'Production'}</strong>
             <span>Tiruppur workspace</span>
           </div>
         </div>
@@ -47,7 +50,7 @@ export function Sidebar({
             const Icon = item.icon;
             return (
               <a
-                className={`nav-item ${index === 0 ? 'active' : ''}`}
+                className={`nav-item ${item.target === activeHash || (activeHash === '' && index === 0) ? 'active' : ''}`}
                 href={item.target}
                 key={item.label}
                 onClick={onClose}
