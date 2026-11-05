@@ -1,16 +1,8 @@
-import type { Order } from './OrderTable';
-
-const labels = {
-  green: 'On track',
-  amber: 'At risk',
-  red: 'Delayed',
-};
-
-export function StatusBadge({ status }: { status: Order['status'] }) {
+export function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`status-badge status-${status}`}>
       <span aria-hidden="true" />
-      {labels[status]}
+      {status.replace('_', ' ').toLowerCase()}
     </span>
   );
 }

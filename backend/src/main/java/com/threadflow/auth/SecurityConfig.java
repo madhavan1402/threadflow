@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health", "/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/workspaces/merchandiser/**").hasRole("MERCHANDISER")
                         .requestMatchers("/api/v1/workspaces/supervisor/**").hasRole("SUPERVISOR")
+                        .requestMatchers("/api/v1/orders/**").authenticated()
+                        .requestMatchers("/api/v1/buyers/**", "/api/v1/milestone-templates/**").authenticated()
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout").authenticated()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions

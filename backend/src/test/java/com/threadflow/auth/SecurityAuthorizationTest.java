@@ -37,4 +37,22 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/v1/workspaces/supervisor/updates"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "SUPERVISOR")
+    void supervisorCannotCreateOrder() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/orders")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPERVISOR")
+    void supervisorCannotUpdateOrder() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/orders/1")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
 }

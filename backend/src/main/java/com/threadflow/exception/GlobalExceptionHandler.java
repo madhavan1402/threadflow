@@ -14,10 +14,21 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException exception, WebRequest request) {
+        return error(HttpStatus.FORBIDDEN, "Insufficient role", List.of(), request);
+    }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException exception, WebRequest request) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage(), List.of(), request);
+    }
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
             NoResourceFoundException exception,
