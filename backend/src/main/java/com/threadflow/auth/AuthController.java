@@ -11,20 +11,37 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.threadflow.user.User;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthService authService;
     private final AuthCookieService cookieService;
+    private final CsrfTokenRepository csrfTokenRepository;
 
-    public AuthController(AuthService authService, AuthCookieService cookieService) {
+    public AuthController(
+            AuthService authService,
+            AuthCookieService cookieService,
+            CsrfTokenRepository csrfTokenRepository
+    ) {
         this.authService = authService;
         this.cookieService = cookieService;
+        this.csrfTokenRepository = csrfTokenRepository;
     }
 
     @GetMapping("/csrf")
-    public AuthDtos.CsrfResponse csrf(CsrfToken token) {
+    public AuthDtos.CsrfResponse csrf(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        CsrfToken token = csrfTokenRepository.loadToken(request);
+        if (token == null) {
+            token = csrfTokenRepository.generateToken(request);
+            csrfTokenRepository.saveToken(token, request, response);
+        }
         return new AuthDtos.CsrfResponse(token.getHeaderName(), token.getToken());
     }
 
