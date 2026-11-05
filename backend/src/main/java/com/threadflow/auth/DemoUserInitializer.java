@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@Profile("!test")
+@Profile("local")
 public class DemoUserInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;

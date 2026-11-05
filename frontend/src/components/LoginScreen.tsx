@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff, LockKeyhole } from 'lucide-react';
-import { AuthApiError, getDefaultWorkspaceHash, login, validateLogin } from '../auth/auth';
+import { AuthApiError, getDefaultWorkspacePath, login, validateLogin } from '../auth/auth';
 import { useAuth } from '../auth/AuthProvider';
 
 export function LoginScreen() {
@@ -14,19 +14,20 @@ export function LoginScreen() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    setServerError('');
     const validation = validateLogin(email, password);
     setErrors(validation);
-    setServerError('');
     if (Object.keys(validation).length) return;
 
     setLoading(true);
     try {
       const user = await login(email.trim(), password);
       setUser(user);
-      window.location.hash = getDefaultWorkspaceHash(user.roles);
+      window.history.pushState({}, '', getDefaultWorkspacePath(user.roles));
     } catch (error) {
       if (error instanceof AuthApiError) {
         if (error.status === 401) setServerError(error.message || 'Email or password is incorrect.');
+        else if (error.status === 403) setServerError('Sign-in could not be completed. Refresh the page and try again.');
         else setServerError(error.message || 'ThreadFlow could not reach the server.');
       } else {
         setServerError('ThreadFlow could not reach the server. Try again.');
@@ -76,7 +77,11 @@ export function LoginScreen() {
             <input
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setServerError('');
+                setErrors((current) => ({ ...current, email: undefined }));
+              }}
               autoComplete="email"
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? 'login-email-error' : undefined}
@@ -91,7 +96,11 @@ export function LoginScreen() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setServerError('');
+                  setErrors((current) => ({ ...current, password: undefined }));
+                }}
                 autoComplete="current-password"
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? 'login-password-error' : undefined}

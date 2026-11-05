@@ -6,8 +6,7 @@ export type AuthUser = {
   roles: UserRole[];
 };
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '')
-  || 'http://127.0.0.1:8080';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '';
 
 export function getCsrfToken() {
   const match = document.cookie.split('; ')
@@ -65,6 +64,7 @@ export async function currentUser() {
 }
 
 export async function logout() {
+  await prepareCsrf();
   const csrfToken = getCsrfToken();
   return request<{ status: string }>('/api/v1/auth/logout', {
     method: 'POST',
@@ -82,6 +82,21 @@ export function validateLogin(email: string, password: string) {
 
 export function getDefaultWorkspaceHash(roles: UserRole[]) {
   return roles.includes('MERCHANDISER') ? '#orders' : '#production';
+}
+
+export function getDefaultWorkspacePath(roles: UserRole[]) {
+  return roles.includes('MERCHANDISER') ? '/merchandiser' : '/supervisor';
+}
+
+export function getWorkspaceFromPath(pathname: string) {
+  if (pathname === '/merchandiser') return 'MERCHANDISER';
+  if (pathname === '/supervisor') return 'SUPERVISOR';
+  return null;
+}
+
+export function isPathWorkspaceAllowed(pathname: string, roles: UserRole[]) {
+  const workspaceRole = getWorkspaceFromPath(pathname);
+  return workspaceRole === null || roles.includes(workspaceRole);
 }
 
 export function isWorkspaceAllowed(hash: string, roles: UserRole[]) {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { getDefaultWorkspaceHash, isWorkspaceAllowed, validateLogin } from './auth';
+import {
+  getDefaultWorkspaceHash,
+  getDefaultWorkspacePath,
+  getWorkspaceFromPath,
+  isPathWorkspaceAllowed,
+  isWorkspaceAllowed,
+  validateLogin,
+} from './auth';
 
 describe('login form validation', () => {
   it('requires email and password', () => {
@@ -40,5 +47,22 @@ describe('role workspaces', () => {
   it('allows overview only as a shared workspace', () => {
     expect(isWorkspaceAllowed('#overview', ['SUPERVISOR'])).toBe(true);
     expect(isWorkspaceAllowed('#overview', ['MERCHANDISER'])).toBe(true);
+  });
+
+  it('redirects merchandisers to /merchandiser', () => {
+    expect(getDefaultWorkspacePath(['MERCHANDISER'])).toBe('/merchandiser');
+  });
+
+  it('redirects supervisors to /supervisor', () => {
+    expect(getDefaultWorkspacePath(['SUPERVISOR'])).toBe('/supervisor');
+  });
+
+  it('enforces workspace paths from authenticated roles', () => {
+    expect(getWorkspaceFromPath('/merchandiser')).toBe('MERCHANDISER');
+    expect(getWorkspaceFromPath('/supervisor')).toBe('SUPERVISOR');
+    expect(isPathWorkspaceAllowed('/merchandiser', ['MERCHANDISER'])).toBe(true);
+    expect(isPathWorkspaceAllowed('/supervisor', ['SUPERVISOR'])).toBe(true);
+    expect(isPathWorkspaceAllowed('/merchandiser', ['SUPERVISOR'])).toBe(false);
+    expect(isPathWorkspaceAllowed('/supervisor', ['MERCHANDISER'])).toBe(false);
   });
 });

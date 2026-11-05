@@ -5,7 +5,7 @@ import { MetricStrip } from './components/MetricStrip';
 import { OrderTable, type Order } from './components/OrderTable';
 import { LoginScreen } from './components/LoginScreen';
 import { useAuth } from './auth/AuthProvider';
-import { getDefaultWorkspaceHash, isWorkspaceAllowed } from './auth/auth';
+import { getDefaultWorkspaceHash, getDefaultWorkspacePath, isPathWorkspaceAllowed, isWorkspaceAllowed } from './auth/auth';
 
 const sampleOrders: Order[] = [
   { po: 'TF-88213', buyer: 'North & Loom · UK', style: "Men's crew neck tee", unit: 'Unit 01 · Tiruppur', stage: 'Stitching', completed: 6800, total: 12000, due: '2026-11-20', status: 'amber', note: 'முன்னேற்பாடு செய்து இருங்கள்' },
@@ -42,9 +42,18 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || window.location.hash) return;
-    window.location.hash = getDefaultWorkspaceHash(user.roles);
+    if (!user) return;
+    if (window.location.pathname === '/') {
+      window.history.replaceState({}, '', getDefaultWorkspacePath(user.roles));
+      setRequestedHash(window.location.hash || '#overview');
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user && window.location.pathname !== '/login') {
+      window.history.replaceState({}, '', '/login');
+    }
+  }, [loading, user]);
 
   const filteredOrders = useMemo(() => sampleOrders.filter((order) => {
     const matchesQuery = `${order.po} ${order.buyer} ${order.style} ${order.note}`
@@ -79,6 +88,26 @@ function App() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (!isPathWorkspaceAllowed(window.location.pathname, user.roles)) {
+    return (
+      <main className="access-denied" role="alert">
+        <div className="access-denied-mark" aria-hidden="true">TF</div>
+        <h1>Workspace access denied</h1>
+        <p>Your account does not have permission to open this workspace.</p>
+        <button
+          className="login-submit"
+          type="button"
+          onClick={() => {
+            window.history.pushState({}, '', getDefaultWorkspacePath(user.roles));
+            setRequestedHash(window.location.hash || '#overview');
+          }}
+        >
+          Return to my workspace
+        </button>
+      </main>
+    );
   }
 
   if (!isWorkspaceAllowed(requestedHash, user.roles)) {
