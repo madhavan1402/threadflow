@@ -16,9 +16,12 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(
             AccessDeniedException exception, WebRequest request) {
@@ -86,6 +89,7 @@ public class GlobalExceptionHandler {
             Exception exception,
             WebRequest request
     ) {
+        log.error("Unhandled API error at {}", request.getDescription(false), exception);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", List.of(), request);
     }
 

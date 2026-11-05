@@ -25,3 +25,5 @@ threadflow:
     merchandiser-password: ${THREADFLOW_DEMO_MERCHANDISER_PASSWORD:}
     supervisor-email: ${THREADFLOW_DEMO_SUPERVISOR_EMAIL:}
     supervisor-password: ${THREADFLOW_DEMO_SUPERVISOR_PASSWORD:}
+  production:
+    photo-storage-root: ${THREADFLOW_PRODUCTION_PHOTO_STORAGE_ROOT:${java.io.tmpdir}/threadflow-production-photos}

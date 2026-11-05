@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/workspaces/merchandiser/**").hasRole("MERCHANDISER")
                         .requestMatchers("/api/v1/workspaces/supervisor/**").hasRole("SUPERVISOR")
                         .requestMatchers("/api/v1/orders/**").authenticated()
+                        .requestMatchers("/api/v1/production/**").authenticated()
                         .requestMatchers("/api/v1/buyers/**", "/api/v1/milestone-templates/**").authenticated()
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout").authenticated()
                         .anyRequest().authenticated())

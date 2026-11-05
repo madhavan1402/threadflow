@@ -9,6 +9,9 @@ import com.threadflow.order.OrderRepository;
 import com.threadflow.order.OrderVariant;
 import com.threadflow.order.ProductionOrder;
 import com.threadflow.order.OrderMilestone;
+import com.threadflow.production.SupervisorOrderAssignment;
+import com.threadflow.production.SupervisorOrderAssignmentRepository;
+import com.threadflow.user.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
@@ -23,12 +26,14 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
     private final BuyerRepository buyers;
     private final MilestoneTemplateRepository templates;
     private final OrderRepository orders;
+    private final UserRepository users;
+    private final SupervisorOrderAssignmentRepository assignments;
 
     public LocalOrderSampleInitializer(BuyerRepository buyers, MilestoneTemplateRepository templates,
-                                       OrderRepository orders) {
-        this.buyers = buyers;
-        this.templates = templates;
-        this.orders = orders;
+                                       OrderRepository orders, UserRepository users,
+                                       SupervisorOrderAssignmentRepository assignments) {
+        this.buyers = buyers; this.templates = templates; this.orders = orders;
+        this.users = users; this.assignments = assignments;
     }
 
     @Override
@@ -58,6 +63,13 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
                 "Men's polo shirt in white", 8000, LocalDate.of(2026, 11, 12), template);
         createOrder("C-PO-0488", buyerC, "Kids printed tee yellow",
                 "Kids printed tee in yellow", 10000, LocalDate.of(2026, 11, 28), template);
+
+        users.findByEmailIgnoreCase("supervisor@local.threadflow").ifPresent(supervisor ->
+                orders.findAll().forEach(order -> {
+                    if (!assignments.existsBySupervisorIdAndOrderId(supervisor.getId(), order.getId())) {
+                        assignments.save(new SupervisorOrderAssignment(supervisor, order));
+                    }
+                }));
     }
 
     private void createOrder(String po, Buyer buyer, String style, String description, int quantity,

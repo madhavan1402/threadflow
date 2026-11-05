@@ -5,6 +5,7 @@ import { OrderTable, type Order } from './components/OrderTable';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
+import { productionApi, validatePhotos, type AvailableOrder, type ProductionUpdate } from './api/production';
 
 export type ViewState = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -89,16 +90,16 @@ function App() {
               <p className="title-context">{isMerchandiser ? 'Merchandising workspace · Tiruppur' : 'Production workspace · Tiruppur'}</p>
               <h1>{detailId ? 'Order detail' : isMerchandiser ? 'Production orders' : 'Production overview'}</h1>
             </div>
-            {isMerchandiser && !detailId && (
+            {isMerchandiser && window.location.hash === '#production' && (
+              <ProductionHistory />
+            )}
+            {isMerchandiser && window.location.hash !== '#production' && !detailId && (
               <button className="primary-action" type="button" onClick={() => setCreateOpen(true)}>Create order</button>
             )}
           </div>
 
           {!isMerchandiser && (
-            <section className="empty-panel">
-              <h2>Restricted order information</h2>
-              <p>This account is not assigned to production orders in the current access model.</p>
-            </section>
+            <SupervisorProductionWorkspace />
           )}
 
           {isMerchandiser && !detailId && (
@@ -229,6 +230,137 @@ function OrderDetail({ id, onBack }: { id: number; onBack: () => void }) {
       <dl className="detail-grid"><div><dt>Buyer</dt><dd>{order.buyer.buyerName}, {order.buyer.country}</dd></div><div><dt>Total quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div><div><dt>Ex-factory</dt><dd>{order.exFactoryDate}</dd></div></dl>
       <section className="variant-section"><h3>Color and size breakdown</h3>{order.variants.map(variant => <p key={variant.id ?? `${variant.color}-${variant.size}`}>{variant.color} · {variant.size} · {variant.quantity.toLocaleString()}</p>)}</section>
       <section className="timeline"><h3>TNA timeline</h3>{order.milestones.map(milestone => <article key={milestone.id}><div><strong>{milestone.sequenceNumber}. {milestone.milestoneName}</strong><span>{milestone.status}</span></div><p>{milestone.plannedStartDate} to {milestone.plannedEndDate}</p><p>{milestone.actualStartDate || 'Actual start: —'} · {milestone.actualCompletionDate || 'Actual completion: —'}</p></article>)}</section>
+    </section>
+  );
+}
+
+function SupervisorProductionWorkspace() {
+  const [orders, setOrders] = useState<AvailableOrder[]>([]);
+  const [updates, setUpdates] = useState<ProductionUpdate[]>([]);
+  const [orderId, setOrderId] = useState('');
+  const [milestoneId, setMilestoneId] = useState('');
+  const [productionDate, setProductionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [quantity, setQuantity] = useState('');
+  const [issueNote, setIssueNote] = useState('');
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [photoError, setPhotoError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const selectedOrder = orders.find(order => String(order.id) === orderId);
+
+  useEffect(() => () => {
+    photoPreviews.forEach(url => URL.revokeObjectURL(url));
+  }, [photoPreviews]);
+
+  const load = async () => {
+    setLoading(true); setFormError('');
+    try {
+      const [available, history] = await Promise.all([productionApi.availableOrders(), productionApi.myUpdates()]);
+      setOrders(available); setUpdates(history);
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : 'Production information could not be loaded.');
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormError(''); setSuccess('');
+    const quantityNumber = Number(quantity);
+    if (!orderId || !milestoneId) { setFormError('Select an order and production stage.'); return; }
+    if (!Number.isInteger(quantityNumber) || quantityNumber < 1) { setFormError('Enter a positive whole quantity.'); return; }
+    if (photoError) return;
+    setSubmitting(true);
+    try {
+      await productionApi.submit({
+        orderId: Number(orderId), milestoneId: Number(milestoneId), productionDate,
+        completedQuantity: quantityNumber, issueNote, photos,
+        idempotencyKey,
+      });
+      setSuccess('Production update saved.');
+      setQuantity(''); setIssueNote(''); setPhotos([]); setPhotoError('');
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+      setPhotoPreviews([]);
+      setIdempotencyKey(globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      await load();
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : 'Connection error. Retry when the network is available.');
+    } finally { setSubmitting(false); }
+  };
+
+  if (loading) return <section className="empty-panel">Loading production workspace...</section>;
+  return (
+    <div className="production-layout">
+      <section className="production-entry">
+        <div className="section-heading"><div><p>Daily floor entry</p><h2>Record production</h2></div></div>
+        {formError && <div className="login-alert" role="alert">{formError} <button className="inline-retry" type="button" onClick={load}>Retry</button></div>}
+        {success && <div className="success-alert" role="status">{success}</div>}
+        <form onSubmit={submit} className="production-form">
+          <label>Order<select value={orderId} onChange={event => { setOrderId(event.target.value); setMilestoneId(''); }}><option value="">Select an order</option>{orders.map(order => <option key={order.id} value={order.id}>{order.poNumber} · {order.styleName}</option>)}</select></label>
+          <label>Production stage<select value={milestoneId} onChange={event => setMilestoneId(event.target.value)} disabled={!selectedOrder}><option value="">Select stage</option>{selectedOrder?.milestones.map(milestone => <option key={milestone.id} value={milestone.id}>{milestone.sequenceNumber}. {milestone.milestoneName}</option>)}</select></label>
+          <div className="production-fields">
+            <label>Production date<input type="date" max={productionDate} value={productionDate} onChange={event => setProductionDate(event.target.value)} /></label>
+            <label>Completed quantity<input type="number" min="1" step="1" inputMode="numeric" value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="0" /></label>
+          </div>
+          <label>Issue note<textarea value={issueNote} maxLength={5000} onChange={event => setIssueNote(event.target.value)} placeholder="Tamil or English" /></label>
+          <label className="photo-input">Production photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event => {
+            const selected = Array.from(event.target.files || []);
+            const validation = validatePhotos(selected);
+            photoPreviews.forEach(url => URL.revokeObjectURL(url));
+            setPhotoError(validation);
+            setPhotos(validation ? [] : selected);
+            setPhotoPreviews(validation ? [] : selected.map(file => URL.createObjectURL(file)));
+          }} /><span>JPEG, PNG or WebP · 10 MB per photo</span></label>
+          {photoError && <p className="field-error">{photoError}</p>}
+          {photoPreviews.length > 0 && <div className="photo-previews">{photos.map((file, index) => <img key={`${file.name}-${index}`} src={URL.createObjectURL(file)} alt={file.name} />)}</div>}
+          <button className="primary-action production-submit" type="submit" disabled={submitting}>{submitting ? 'Saving...' : 'Save production update'}</button>
+        </form>
+      </section>
+      <ProductionHistoryContent updates={updates} title="My update history" emptyText="No production updates recorded yet." />
+    </div>
+  );
+}
+
+function ProductionHistory() {
+  const [updates, setUpdates] = useState<ProductionUpdate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const load = async () => {
+    setLoading(true); setError('');
+    try { setUpdates(await productionApi.updates()); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Production history could not be loaded.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+  if (loading) return <section className="empty-panel">Loading production history...</section>;
+  if (error) return <section className="empty-panel"><h2>Production history unavailable</h2><p>{error}</p><button className="state-action" onClick={load}>Retry</button></section>;
+  return <ProductionHistoryContent updates={updates} title="Production updates" emptyText="No production updates have been submitted." />;
+}
+
+function ProductionHistoryContent({ updates, title, emptyText }: { updates: ProductionUpdate[]; title: string; emptyText: string }) {
+  const [query, setQuery] = useState('');
+  const filtered = updates.filter(update =>
+    `${update.poNumber} ${update.milestoneName} ${update.supervisorEmail} ${update.issueNote || ''}`
+      .toLowerCase().includes(query.toLowerCase()));
+  return (
+    <section className="production-history">
+      <div className="section-heading"><div><p>Submitted records</p><h2>{title}</h2></div><label className="history-search"><span className="sr-only">Filter production updates</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter updates" /></label></div>
+      {filtered.length === 0 ? <div className="empty-panel">{emptyText}</div> : <div className="update-list">{filtered.map(update => (
+        <article className="update-record" key={update.id}>
+          <div className="update-record-head"><strong>{update.poNumber}</strong><time>{update.productionDate}</time></div>
+          <p className="update-stage">{update.milestoneName}</p>
+          <div className="update-quantity"><strong>{update.completedQuantity.toLocaleString()}</strong><span>completed</span></div>
+          {update.issueNote && <p className="issue-note">{update.issueNote}</p>}
+          <small>{update.supervisorEmail}</small>
+          {update.photos.length > 0 && <div className="production-photo-links">{update.photos.map(photo => <a key={photo.id} href={productionApi.photoUrl(photo.id)} target="_blank" rel="noreferrer">{photo.originalFilename}</a>)}</div>}
+        </article>
+      ))}</div>}
     </section>
   );
 }

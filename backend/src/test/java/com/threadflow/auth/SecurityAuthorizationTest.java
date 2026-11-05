@@ -1,6 +1,7 @@
 package com.threadflow.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,26 @@ class SecurityAuthorizationTest {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/orders/1")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "MERCHANDISER")
+    void merchandiserCannotSubmitProductionUpdate() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/production/updates")
+                        .param("orderId", "1")
+                        .param("milestoneId", "1")
+                        .param("productionDate", "2026-11-05")
+                        .param("completedQuantity", "100")
+                        .param("idempotencyKey", "test-key")
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPERVISOR")
+    void supervisorCannotAccessMerchandiserProductionHistory() throws Exception {
+        mockMvc.perform(get("/api/v1/production/updates"))
                 .andExpect(status().isForbidden());
     }
 }
