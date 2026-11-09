@@ -112,6 +112,29 @@ class SupervisorAssignmentAccessTest {
     }
 
     @Test
+    void supervisorDelayRiskListContainsOnlyAuthorizedOrders() throws Exception {
+        unitAssignments.saveAndFlush(new SupervisorUnitAssignment(supervisor, unit, merchandiser));
+
+        mockMvc.perform(get("/api/v1/analytics/delay-risk").with(user(supervisor)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(order.getId()));
+    }
+
+    @Test
+    void supervisorCannotFetchDelayRiskForUnassignedOrder() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/orders/{orderId}/delay-risk", order.getId()).with(user(supervisor)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void merchandiserCanFetchDelayRiskWithoutSupervisorAssignment() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/orders/{orderId}/delay-risk", order.getId()).with(user(merchandiser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(order.getId()));
+    }
+
+    @Test
     void revokingUnitMembershipRemovesAccessWithoutDirectAssignment() {
         SupervisorUnitAssignment membership = unitAssignments.saveAndFlush(
                 new SupervisorUnitAssignment(supervisor, unit, merchandiser));

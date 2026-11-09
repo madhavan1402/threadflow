@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { OrderTable, type Order } from './components/OrderTable';
 import { OrderAssignmentPanel } from './components/OrderAssignmentPanel';
+import { OrderDelayRiskPanel, ProductionDelaySummary } from './components/ProductionDelayView';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
@@ -75,11 +76,6 @@ function App() {
     );
   }
 
-  const counts = {
-    inProgress: orders.filter(order => order.status === 'IN_PROGRESS').length,
-    completed: orders.filter(order => order.status === 'COMPLETED').length,
-  };
-
   return (
     <div className="app-shell">
       <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} roles={user.roles}
@@ -105,12 +101,7 @@ function App() {
 
           {isMerchandiser && !detailId && (
             <>
-              <section className="metric-strip" aria-label="Order summary">
-                <article className="metric"><p>Total orders</p><strong>{orders.length}</strong></article>
-                <article className="metric"><p>In progress</p><strong>{counts.inProgress}</strong></article>
-                <article className="metric"><p>At risk</p><strong>0</strong><span>Risk calculations not configured in this phase</span></article>
-                <article className="metric"><p>Completed</p><strong>{counts.completed}</strong></article>
-              </section>
+              <ProductionDelaySummary onOpenOrder={setDetailId} />
               <div className="order-filters">
                 <label>Buyer
                   <select value={buyerId} onChange={event => setBuyerId(event.target.value)}>
@@ -229,6 +220,7 @@ function OrderDetail({ id, onBack }: { id: number; onBack: () => void }) {
       <button className="state-action" type="button" onClick={onBack}>Back to orders</button>
       <div className="detail-header"><div><p>{order.poNumber}</p><h2>{order.styleName}</h2></div><strong>{order.status}</strong></div>
       <dl className="detail-grid"><div><dt>Buyer</dt><dd>{order.buyer.buyerName}, {order.buyer.country}</dd></div><div><dt>Total quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div><div><dt>Ex-factory</dt><dd>{order.exFactoryDate}</dd></div></dl>
+      <OrderDelayRiskPanel orderId={id} />
       <section className="variant-section"><h3>Color and size breakdown</h3>{order.variants.map(variant => <p key={variant.id ?? `${variant.color}-${variant.size}`}>{variant.color} · {variant.size} · {variant.quantity.toLocaleString()}</p>)}</section>
       <OrderAssignmentPanel orderId={id} />
       <section className="timeline"><h3>TNA timeline</h3>{order.milestones.map(milestone => <article key={milestone.id}><div><strong>{milestone.sequenceNumber}. {milestone.milestoneName}</strong><span>{milestone.status}</span></div><p>{milestone.plannedStartDate} to {milestone.plannedEndDate}</p><p>{milestone.actualStartDate || 'Actual start: —'} · {milestone.actualCompletionDate || 'Actual completion: —'}</p></article>)}</section>

@@ -58,6 +58,7 @@ public class ProductionOrder {
     public String getProductDescription() { return productDescription; }
     public Integer getTotalQuantity() { return totalQuantity; }
     public LocalDate getExFactoryDate() { return exFactoryDate; }
+    public Instant getCreatedAt() { return createdAt; }
     public Status getStatus() { return status; }
     public List<OrderVariant> getVariants() { return variants; }
     public List<OrderMilestone> getMilestones() { return milestones; }

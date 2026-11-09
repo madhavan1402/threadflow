@@ -42,7 +42,7 @@ class ProductionServiceTest {
         unitAssignments = mock(SupervisorUnitAssignmentRepository.class);
         supervisorAccess = new SupervisorOrderAccessService(orders, assignments, unitAssignments);
         storage = mock(ProductionPhotoStorage.class);
-        service = new ProductionService(updates, photos, assignments, supervisorAccess, orders, storage);
+        service = new ProductionService(updates, photos, supervisorAccess, orders, storage);
 
         Role supervisorRole = new Role("SUPERVISOR");
         supervisor = new User("supervisor@local.threadflow", "encoded", true);
@@ -62,7 +62,7 @@ class ProductionServiceTest {
         when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(true);
         when(orders.findWithDetailsById(12L)).thenReturn(Optional.of(order));
         when(updates.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
-        when(updates.sumCompletedQuantityForOrder(12L)).thenReturn(0L);
+        when(updates.sumCompletedQuantityForOrderAndMilestone(12L, 21L)).thenReturn(0L);
         when(updates.save(any(ProductionUpdate.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProductionDtos.UpdateResponse response = service.submit(

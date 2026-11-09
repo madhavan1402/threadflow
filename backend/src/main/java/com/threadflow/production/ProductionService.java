@@ -5,6 +5,7 @@ import com.threadflow.order.OrderRepository;
 import com.threadflow.order.ProductionOrder;
 import com.threadflow.user.User;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,7 +23,7 @@ public class ProductionService {
     private final ProductionPhotoStorage storage;
 
     public ProductionService(ProductionUpdateRepository updates, ProductionPhotoRepository photoRepository,
-                             SupervisorOrderAssignmentRepository assignments, SupervisorOrderAccessService supervisorAccess,
+                             SupervisorOrderAccessService supervisorAccess,
                              OrderRepository orders,
                              ProductionPhotoStorage storage) {
         this.updates = updates; this.photoRepository = photoRepository;
@@ -58,15 +59,20 @@ public class ProductionService {
             if (!existing.getSupervisor().getId().equals(supervisor.getId())) throw new AccessDeniedException("Idempotency key belongs to another supervisor");
             return toResponse(existing);
         }
-        if (request.productionDate().isAfter(LocalDate.now())) throw new IllegalArgumentException("Production date cannot be in the future");
+        if (request.productionDate().isAfter(LocalDate.now(ZoneId.of("Asia/Kolkata")))) {
+            throw new IllegalArgumentException("Production date cannot be in the future");
+        }
         ProductionOrder order = orders.findWithDetailsById(request.orderId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + request.orderId()));
         OrderMilestone milestone = order.getMilestones().stream()
                 .filter(m -> m.getId().equals(request.milestoneId()))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("Milestone not found for this order: " + request.milestoneId()));
         if (request.completedQuantity() < 1) throw new IllegalArgumentException("Completed quantity must be positive");
-        long cumulative = updates.sumCompletedQuantityForOrder(order.getId()) + request.completedQuantity();
-        if (cumulative > order.getTotalQuantity()) throw new IllegalArgumentException("Completed quantity exceeds the order quantity");
+        long cumulative = updates.sumCompletedQuantityForOrderAndMilestone(order.getId(), milestone.getId())
+            + request.completedQuantity();
+        if (cumulative > order.getTotalQuantity()) {
+            throw new IllegalArgumentException("Completed quantity for this production stage exceeds the order quantity");
+        }
         ProductionUpdate update = new ProductionUpdate(order, milestone, supervisor, request.productionDate(),
                 request.completedQuantity(), request.issueNote(), request.idempotencyKey());
         List<ProductionPhotoStorage.StoredPhoto> storedPhotos = new ArrayList<>();

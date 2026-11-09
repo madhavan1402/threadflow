@@ -100,4 +100,11 @@ class SecurityAuthorizationTest {
                                 + "\",\"description\":\"Authorization test\",\"active\":true}"))
                 .andExpect(status().isCreated());
     }
+
+    @Test
+    @WithMockUser(roles = "MERCHANDISER")
+    void merchandiserCanReadProductionSummary() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/production-summary"))
+                .andExpect(status().isOk());
+    }
 }

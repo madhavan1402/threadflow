@@ -100,7 +100,24 @@ The frontend login flow uses `/api/v1/auth/csrf` plus the `X-XSRF-TOKEN` header,
 HttpOnly cookie, and redirects successful authentication to `/merchandiser` or `/supervisor` based
 only on the role returned by the backend.
 
+## Production delay intelligence
+Delay analytics use the Asia/Kolkata factory date and calendar days; weekends are included because no
+factory workday calendar is configured. Elapsed and remaining days include their current boundary day.
+
+Completed pieces are summed only from valid positive quantity reports on an order's highest-sequence
+milestone. Reports from earlier milestones describe the same garments moving through production and
+are not added to finished output. Future-dated and non-positive reports are ignored, and cancelled
+orders are excluded. Reported final-stage quantities above the order total are exposed for review but
+effective completion is capped at the order quantity.
+
+The production shortfall is the positive difference between the linear planned completed quantity and
+the actual completed quantity from the first planned milestone start through the factory date, measured
+as pieces behind plan. Estimated days
+to finish divide remaining quantity by the actual average final-stage output per elapsed calendar day;
+the estimated calendar date rounds fractional days up. An order with no final-stage production has no
+completion estimate and is classified at risk until it completes or becomes delayed.
+
 ## Current scope
-The foundation includes the frontend, Spring Boot/MySQL/Flyway backend, and JWT-cookie authentication
-with MERCHANDISER and SUPERVISOR roles. Orders, TNA milestones, production updates, delay projection,
-buyer access, AI classification and offline sync remain future milestones.
+The application includes order management, TNA milestones, production updates, supervisor assignments,
+production delay analytics, and JWT-cookie authentication for MERCHANDISER and SUPERVISOR roles.
+Buyer access, AI classification, and offline sync remain future milestones.
