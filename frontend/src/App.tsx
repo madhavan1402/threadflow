@@ -4,6 +4,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { OrderTable, type Order } from './components/OrderTable';
 import { OrderAssignmentPanel } from './components/OrderAssignmentPanel';
 import { OrderDelayRiskPanel, ProductionDelaySummary } from './components/ProductionDelayView';
+import { IssueReviewPanel } from './components/IssueReviewPanel';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
@@ -26,7 +27,14 @@ function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeHash, setActiveHash] = useState(() => window.location.hash || '#orders');
   const isMerchandiser = !!user?.roles.includes('MERCHANDISER');
+
+  useEffect(() => {
+    const handleHashChange = () => setActiveHash(window.location.hash || '#orders');
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const loadOrders = async () => {
     if (!isMerchandiser) return;
@@ -76,21 +84,29 @@ function App() {
     );
   }
 
+  const getPageTitle = () => {
+    if (detailId) return 'Order detail';
+    if (!isMerchandiser) return 'Production overview';
+    if (activeHash === '#issues') return 'Issue review';
+    if (activeHash === '#production') return 'Production history';
+    return 'Production orders';
+  };
+
   return (
     <div className="app-shell">
       <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} roles={user.roles}
-        email={user.email} onLogout={() => { void logout(); }} activeHash={window.location.hash || '#orders'} />
+        email={user.email} onLogout={() => { void logout(); }} activeHash={activeHash} />
       <div className="workspace">
         <main className="workspace-main" id="orders">
           <div className="title-row">
             <div>
               <p className="title-context">{isMerchandiser ? 'Merchandising workspace · Tiruppur' : 'Production workspace · Tiruppur'}</p>
-              <h1>{detailId ? 'Order detail' : isMerchandiser ? 'Production orders' : 'Production overview'}</h1>
+              <h1>{getPageTitle()}</h1>
             </div>
-            {isMerchandiser && window.location.hash === '#production' && (
+            {isMerchandiser && activeHash === '#production' && (
               <ProductionHistory />
             )}
-            {isMerchandiser && window.location.hash !== '#production' && !detailId && (
+            {isMerchandiser && activeHash !== '#production' && activeHash !== '#issues' && !detailId && (
               <button className="primary-action" type="button" onClick={() => setCreateOpen(true)}>Create order</button>
             )}
           </div>
@@ -99,7 +115,11 @@ function App() {
             <SupervisorProductionWorkspace />
           )}
 
-          {isMerchandiser && !detailId && (
+          {isMerchandiser && activeHash === '#issues' && (
+            <IssueReviewPanel />
+          )}
+
+          {isMerchandiser && activeHash !== '#issues' && !detailId && (
             <>
               <ProductionDelaySummary onOpenOrder={setDetailId} />
               <div className="order-filters">

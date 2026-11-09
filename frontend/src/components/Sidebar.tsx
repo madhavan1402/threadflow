@@ -1,9 +1,10 @@
-import { Boxes, Factory, LayoutDashboard, LogOut } from 'lucide-react';
+import { AlertCircle, Boxes, Factory, LayoutDashboard, LogOut } from 'lucide-react';
 import type { UserRole } from '../auth/auth';
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, target: '#overview' },
   { label: 'Orders', icon: Boxes, target: '#orders' },
+  { label: 'Issues', icon: AlertCircle, target: '#issues' },
   { label: 'Production', icon: Factory, target: '#production' },
 ];
 
@@ -25,7 +26,7 @@ export function Sidebar({
   const isMerchandiser = roles.includes('MERCHANDISER');
   const roleLabel = isMerchandiser ? 'Merchandising' : 'Production';
   const visibleNavItems = navItems.filter((item) => {
-    if (item.label === 'Orders') return roles.includes('MERCHANDISER');
+    if (item.label === 'Orders' || item.label === 'Issues') return roles.includes('MERCHANDISER');
     if (item.label === 'Production') return roles.includes('SUPERVISOR');
     return true;
   });

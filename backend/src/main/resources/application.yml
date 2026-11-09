@@ -27,3 +27,8 @@ threadflow:
     supervisor-password: ${THREADFLOW_DEMO_SUPERVISOR_PASSWORD:}
   production:
     photo-storage-root: ${THREADFLOW_PRODUCTION_PHOTO_STORAGE_ROOT:${java.io.tmpdir}/threadflow-production-photos}
+  ai:
+    base-url: ${THREADFLOW_AI_BASE_URL:}
+    api-key: ${THREADFLOW_AI_API_KEY:}
+    model: ${THREADFLOW_AI_MODEL:}
+    timeout-millis: ${THREADFLOW_AI_TIMEOUT_MILLIS:5000}

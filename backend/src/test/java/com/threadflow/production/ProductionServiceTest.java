@@ -4,9 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.threadflow.buyer.Buyer;
+import com.threadflow.issue.IssueClassificationRequested;
+import com.threadflow.issue.ProductionIssue;
+import com.threadflow.issue.ProductionIssueRepository;
 import com.threadflow.order.OrderMilestone;
 import com.threadflow.order.OrderRepository;
 import com.threadflow.order.ProductionOrder;
@@ -18,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class ProductionServiceTest {
@@ -29,6 +35,8 @@ class ProductionServiceTest {
     private OrderRepository orders;
     private ProductionPhotoStorage storage;
     private ProductionService service;
+    private ProductionIssueRepository issueRepository;
+    private ApplicationEventPublisher eventPublisher;
     private User supervisor;
     private ProductionOrder order;
     private OrderMilestone milestone;
@@ -42,7 +50,10 @@ class ProductionServiceTest {
         unitAssignments = mock(SupervisorUnitAssignmentRepository.class);
         supervisorAccess = new SupervisorOrderAccessService(orders, assignments, unitAssignments);
         storage = mock(ProductionPhotoStorage.class);
-        service = new ProductionService(updates, photos, supervisorAccess, orders, storage);
+        issueRepository = mock(ProductionIssueRepository.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        service = new ProductionService(updates, photos, supervisorAccess, orders, storage,
+            issueRepository, eventPublisher);
 
         Role supervisorRole = new Role("SUPERVISOR");
         supervisor = new User("supervisor@local.threadflow", "encoded", true);
@@ -64,6 +75,11 @@ class ProductionServiceTest {
         when(updates.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
         when(updates.sumCompletedQuantityForOrderAndMilestone(12L, 21L)).thenReturn(0L);
         when(updates.save(any(ProductionUpdate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(issueRepository.save(any(ProductionIssue.class))).thenAnswer(invocation -> {
+            ProductionIssue issue = invocation.getArgument(0);
+            ReflectionTestUtils.setField(issue, "id", 12L);
+            return issue;
+        });
 
         ProductionDtos.UpdateResponse response = service.submit(
                 new ProductionDtos.CreateUpdateRequest(12L, 21L, LocalDate.now(), 100,
@@ -72,6 +88,29 @@ class ProductionServiceTest {
 
         assertEquals("இயந்திரம் பழுதாகிவிட்டது", response.issueNote());
         assertEquals(100, response.completedQuantity());
+        verify(eventPublisher).publishEvent(new IssueClassificationRequested(12L));
+    }
+
+    @Test
+    void classificationDispatchFailureDoesNotFailProductionSubmission() {
+        when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(true);
+        when(orders.findWithDetailsById(12L)).thenReturn(Optional.of(order));
+        when(updates.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
+        when(updates.sumCompletedQuantityForOrderAndMilestone(12L, 21L)).thenReturn(0L);
+        when(updates.save(any(ProductionUpdate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(issueRepository.save(any(ProductionIssue.class))).thenAnswer(invocation -> {
+            ProductionIssue issue = invocation.getArgument(0);
+            ReflectionTestUtils.setField(issue, "id", 12L);
+            return issue;
+        });
+        doThrow(new IllegalStateException("executor unavailable"))
+                .when(eventPublisher).publishEvent(new IssueClassificationRequested(12L));
+
+        ProductionDtos.UpdateResponse response = service.submit(
+                new ProductionDtos.CreateUpdateRequest(12L, 21L, LocalDate.now(), 100,
+                        "Needle broke", "key-1"), null, supervisorAuthentication());
+
+        assertEquals("Needle broke", response.issueNote());
     }
 
     @Test

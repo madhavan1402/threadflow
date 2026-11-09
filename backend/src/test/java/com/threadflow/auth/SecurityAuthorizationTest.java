@@ -107,4 +107,29 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/v1/analytics/production-summary"))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void unauthenticatedCannotAccessIssueEndpoints() throws Exception {
+        mockMvc.perform(get("/api/v1/issues/pending-review"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/issues/1/classification"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/issues/1/review").with(csrf())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"acceptAiClassification\":true}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPERVISOR")
+    void supervisorCannotAccessMerchandiserIssueReview() throws Exception {
+        mockMvc.perform(get("/api/v1/issues/pending-review"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/v1/issues/1/review").with(csrf())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"acceptAiClassification\":true}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/issues/1/reclassify").with(csrf()))
+                .andExpect(status().isForbidden());
+    }
 }

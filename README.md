@@ -117,6 +117,15 @@ to finish divide remaining quantity by the actual average final-stage output per
 the estimated calendar date rounds fractional days up. An order with no final-stage production has no
 completion estimate and is classified at risk until it completes or becomes delayed.
 
+## Tamil issue classification
+The optional issue classifier uses an OpenAI-compatible chat-completions endpoint. Configure
+`THREADFLOW_AI_BASE_URL`, `THREADFLOW_AI_API_KEY`, and `THREADFLOW_AI_MODEL`; the API key is read only
+from the environment. `THREADFLOW_AI_TIMEOUT_MILLIS` defaults to 5000. Leave the endpoint, key and
+model empty to disable AI; production updates still save and issue notes remain available for manual
+merchandiser review. The provider receives only the original note, not order, buyer or supervisor data.
+Classification is asynchronous after the update commits. Failed or unavailable AI results are never
+treated as approved and never generate buyer notifications.
+
 ## Current scope
 The application includes order management, TNA milestones, production updates, supervisor assignments,
 production delay analytics, and JWT-cookie authentication for MERCHANDISER and SUPERVISOR roles.

@@ -51,6 +51,7 @@ public class ProductionOrder {
     @PrePersist void onCreate() { createdAt = updatedAt = Instant.now(); }
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
     public Long getId() { return id; }
+    public Long getCreatedBy() { return createdBy; }
     public Buyer getBuyer() { return buyer; }
     public ProductionUnit getProductionUnit() { return productionUnit; }
     public String getPoNumber() { return poNumber; }

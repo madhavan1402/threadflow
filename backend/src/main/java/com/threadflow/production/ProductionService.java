@@ -1,5 +1,8 @@
 package com.threadflow.production;
 
+import com.threadflow.issue.IssueClassificationRequested;
+import com.threadflow.issue.ProductionIssue;
+import com.threadflow.issue.ProductionIssueRepository;
 import com.threadflow.order.OrderMilestone;
 import com.threadflow.order.OrderRepository;
 import com.threadflow.order.ProductionOrder;
@@ -8,6 +11,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -21,14 +25,16 @@ public class ProductionService {
     private final SupervisorOrderAccessService supervisorAccess;
     private final OrderRepository orders;
     private final ProductionPhotoStorage storage;
+    private final ProductionIssueRepository issues;
+    private final ApplicationEventPublisher events;
 
     public ProductionService(ProductionUpdateRepository updates, ProductionPhotoRepository photoRepository,
                              SupervisorOrderAccessService supervisorAccess,
-                             OrderRepository orders,
-                             ProductionPhotoStorage storage) {
+                             OrderRepository orders, ProductionPhotoStorage storage,
+                             ProductionIssueRepository issues, ApplicationEventPublisher events) {
         this.updates = updates; this.photoRepository = photoRepository;
         this.supervisorAccess = supervisorAccess;
-        this.orders = orders; this.storage = storage;
+        this.orders = orders; this.storage = storage; this.issues = issues; this.events = events;
     }
 
     @Transactional(readOnly = true)
@@ -86,7 +92,16 @@ public class ProductionService {
                     update.addPhoto(photo);
                 }
             }
-            return toResponse(updates.save(update));
+            ProductionUpdate saved = updates.save(update);
+            if (request.issueNote() != null && !request.issueNote().isBlank()) {
+                ProductionIssue issue = issues.save(new ProductionIssue(saved));
+                try {
+                    events.publishEvent(new IssueClassificationRequested(issue.getId()));
+                } catch (RuntimeException ignored) {
+                    // The persisted PENDING issue remains available for manual review or reclassification.
+                }
+            }
+            return toResponse(saved);
         } catch (RuntimeException exception) {
             storedPhotos.forEach(stored -> storage.delete(stored.storagePath()));
             throw exception;
