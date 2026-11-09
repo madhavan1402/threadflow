@@ -8,10 +8,13 @@ import { IssueReviewPanel } from './components/IssueReviewPanel';
 import { BuyerPortal } from './components/BuyerPortal';
 import { OrderAuditHistoryModal } from './components/OrderAuditHistoryModal';
 import { BuyerWarningPanel } from './components/BuyerWarningPanel';
+import { Topbar } from './components/Topbar';
+import { MerchandiserDashboard } from './components/MerchandiserDashboard';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
 import { productionApi, validatePhotos, type AvailableOrder, type ProductionUpdate } from './api/production';
+import { issuesApi } from './api/issues';
 
 export type ViewState = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -100,35 +103,71 @@ function App() {
     return 'Production orders';
   };
 
+  const [pendingIssuesCount, setPendingIssuesCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (isMerchandiser) {
+      issuesApi.pendingReview().then(issues => setPendingIssuesCount(issues.length)).catch(() => {});
+    }
+  }, [isMerchandiser, activeHash]);
+
   return (
     <div className="app-shell">
-      <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} roles={user.roles}
-        email={user.email} onLogout={() => { void logout(); }} activeHash={activeHash} />
+      <Sidebar
+        menuOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        roles={user.roles}
+        email={user.email}
+        onLogout={() => { void logout(); }}
+        activeHash={activeHash}
+        pendingIssuesCount={pendingIssuesCount}
+        ordersCount={orders.length}
+      />
       <div className="workspace">
+        <Topbar
+          onMenu={() => setMenuOpen(true)}
+          activeHash={activeHash}
+          roles={user.roles}
+          email={user.email}
+          pendingIssuesCount={pendingIssuesCount}
+          onRefresh={() => {
+            if (isMerchandiser) void loadOrders();
+          }}
+          searchQuery={query}
+          onSearchChange={isMerchandiser && activeHash === '#orders' ? setQuery : undefined}
+        />
         <main className="workspace-main" id="orders">
-          <div className="title-row">
-            <div>
-              <p className="title-context">{isMerchandiser ? 'Merchandising workspace · Tiruppur' : 'Production workspace · Tiruppur'}</p>
-              <h1>{getPageTitle()}</h1>
-            </div>
-            {isMerchandiser && activeHash === '#production' && (
-              <ProductionHistory />
-            )}
-            {isMerchandiser && activeHash !== '#production' && activeHash !== '#issues' && !detailId && (
-              <button className="primary-action" type="button" onClick={() => setCreateOpen(true)}>Create order</button>
-            )}
-          </div>
-
-          {!isMerchandiser && (
+          {detailId ? (
+            <OrderDetail id={detailId} onBack={() => setDetailId(null)} />
+          ) : !isMerchandiser ? (
             <SupervisorProductionWorkspace />
-          )}
-
-          {isMerchandiser && activeHash === '#issues' && (
+          ) : activeHash === '#overview' ? (
+            <MerchandiserDashboard
+              onOpenOrder={setDetailId}
+              onCreateOrder={() => setCreateOpen(true)}
+              pendingIssuesCount={pendingIssuesCount}
+            />
+          ) : activeHash === '#issues' ? (
             <IssueReviewPanel />
-          )}
-
-          {isMerchandiser && activeHash !== '#issues' && !detailId && (
+          ) : activeHash === '#production' ? (
             <>
+              <div className="title-row">
+                <div>
+                  <p className="title-context">Merchandising workspace · Tiruppur</p>
+                  <h1>Production history</h1>
+                </div>
+              </div>
+              <ProductionHistory />
+            </>
+          ) : (
+            <>
+              <div className="title-row">
+                <div>
+                  <p className="title-context">Merchandising workspace · Tiruppur</p>
+                  <h1>{getPageTitle()}</h1>
+                </div>
+                <button className="primary-action" type="button" onClick={() => setCreateOpen(true)}>Create order</button>
+              </div>
               <ProductionDelaySummary onOpenOrder={setDetailId} />
               <div className="order-filters">
                 <label>Buyer
@@ -155,7 +194,6 @@ function App() {
                 errorMessage={error} onOpen={setDetailId} />
             </>
           )}
-          {detailId && <OrderDetail id={detailId} onBack={() => setDetailId(null)} />}
         </main>
       </div>
       {createOpen && <CreateOrder buyers={buyers} templates={templates} onClose={() => setCreateOpen(false)}
