@@ -7,8 +7,11 @@
 - Docker Desktop
 
 ## 1. Start the database
-From the repository root:
+From the repository root, provide local-only database passwords through environment variables, then start MySQL 8:
 ```powershell
+$env:SPRING_DATASOURCE_USERNAME="threadflow_app"
+$env:SPRING_DATASOURCE_PASSWORD="<local-database-password>"
+$env:MYSQL_ROOT_PASSWORD="<local-root-password>"
 docker compose up -d db
 ```
 
@@ -32,6 +35,7 @@ Open `http://localhost:5173`.
 - `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
+- `MYSQL_ROOT_PASSWORD` (local MySQL container only)
 
 The values in local configuration are for development only. Use deployment-provider secrets for production.
 

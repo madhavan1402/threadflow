@@ -2,43 +2,46 @@ package com.threadflow.production;
 
 import com.threadflow.order.ProductionOrder;
 import com.threadflow.user.User;
-import jakarta.persistence.*;
-import java.io.Serializable;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
 @Table(name = "supervisor_order_assignments")
 public class SupervisorOrderAssignment {
-    @EmbeddedId private AssignmentId id = new AssignmentId();
-    @MapsId("supervisorId")
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "supervisor_id") private User supervisor;
-    @MapsId("orderId")
+    @JoinColumn(name = "supervisor_id", nullable = false) private User supervisor;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "order_id") private ProductionOrder order;
-    @Column(name = "created_at", nullable = false, updatable = false) private Instant createdAt;
+    @JoinColumn(name = "order_id", nullable = false) private ProductionOrder order;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_by") private User assignedBy;
+    @Column(name = "assigned_at", nullable = false, updatable = false) private Instant assignedAt;
+    @Column(name = "revoked_at") private Instant revokedAt;
+    @Column(nullable = false) private boolean active = true;
 
     protected SupervisorOrderAssignment() {}
     public SupervisorOrderAssignment(User supervisor, ProductionOrder order) {
-        this.supervisor = supervisor; this.order = order;
-        this.id = new AssignmentId(supervisor.getId(), order.getId());
+        this(supervisor, order, null);
     }
-    @PrePersist void onCreate() { createdAt = Instant.now(); }
-    public boolean isPresent() { return true; }
+    public SupervisorOrderAssignment(User supervisor, ProductionOrder order, User assignedBy) {
+        this.supervisor = supervisor; this.order = order; this.assignedBy = assignedBy;
+    }
+    @PrePersist void onCreate() { assignedAt = Instant.now(); }
+    public void revoke(Instant at) { active = false; revokedAt = at; }
+    public Long getId() { return id; }
+    public User getSupervisor() { return supervisor; }
     public ProductionOrder getOrder() { return order; }
-
-    @Embeddable
-    public static class AssignmentId implements Serializable {
-        @Column(name = "supervisor_id") private Long supervisorId;
-        @Column(name = "order_id") private Long orderId;
-        public AssignmentId() {}
-        public AssignmentId(Long supervisorId, Long orderId) { this.supervisorId = supervisorId; this.orderId = orderId; }
-        @Override public boolean equals(Object other) {
-            if (this == other) return true;
-            if (!(other instanceof AssignmentId that)) return false;
-            return java.util.Objects.equals(supervisorId, that.supervisorId)
-                    && java.util.Objects.equals(orderId, that.orderId);
-        }
-        @Override public int hashCode() { return java.util.Objects.hash(supervisorId, orderId); }
-    }
+    public User getAssignedBy() { return assignedBy; }
+    public Instant getAssignedAt() { return assignedAt; }
+    public Instant getRevokedAt() { return revokedAt; }
+    public boolean isActive() { return active; }
 }

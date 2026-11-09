@@ -54,13 +54,11 @@ public class ProductionController {
     public List<ProductionDtos.UpdateResponse> updates(Authentication authentication) { return service.allUpdates(authentication); }
 
     @GetMapping("/orders/{orderId}/updates")
-    @PreAuthorize("hasRole('MERCHANDISER')")
     public List<ProductionDtos.UpdateResponse> orderUpdates(@PathVariable Long orderId, Authentication authentication) {
         return service.orderUpdates(orderId, authentication);
     }
 
     @GetMapping("/milestones/{milestoneId}/updates")
-    @PreAuthorize("hasRole('MERCHANDISER')")
     public List<ProductionDtos.UpdateResponse> milestoneUpdates(@PathVariable Long milestoneId, Authentication authentication) {
         return service.milestoneUpdates(milestoneId, authentication);
     }

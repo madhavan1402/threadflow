@@ -24,6 +24,8 @@ class ProductionServiceTest {
     private ProductionUpdateRepository updates;
     private ProductionPhotoRepository photos;
     private SupervisorOrderAssignmentRepository assignments;
+    private SupervisorUnitAssignmentRepository unitAssignments;
+    private SupervisorOrderAccessService supervisorAccess;
     private OrderRepository orders;
     private ProductionPhotoStorage storage;
     private ProductionService service;
@@ -37,8 +39,10 @@ class ProductionServiceTest {
         photos = mock(ProductionPhotoRepository.class);
         assignments = mock(SupervisorOrderAssignmentRepository.class);
         orders = mock(OrderRepository.class);
+        unitAssignments = mock(SupervisorUnitAssignmentRepository.class);
+        supervisorAccess = new SupervisorOrderAccessService(orders, assignments, unitAssignments);
         storage = mock(ProductionPhotoStorage.class);
-        service = new ProductionService(updates, photos, assignments, orders, storage);
+        service = new ProductionService(updates, photos, assignments, supervisorAccess, orders, storage);
 
         Role supervisorRole = new Role("SUPERVISOR");
         supervisor = new User("supervisor@local.threadflow", "encoded", true);
@@ -55,7 +59,7 @@ class ProductionServiceTest {
 
     @Test
     void supervisorCanSubmitValidUpdateWithTamilNote() {
-        when(assignments.existsBySupervisorIdAndOrderId(7L, 12L)).thenReturn(true);
+        when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(true);
         when(orders.findWithDetailsById(12L)).thenReturn(Optional.of(order));
         when(updates.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
         when(updates.sumCompletedQuantityForOrder(12L)).thenReturn(0L);
@@ -72,14 +76,14 @@ class ProductionServiceTest {
 
     @Test
     void unassignedSupervisorIsRejected() {
-        when(assignments.existsBySupervisorIdAndOrderId(7L, 12L)).thenReturn(false);
+        when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(false);
         assertThrows(org.springframework.security.access.AccessDeniedException.class,
                 () -> service.submit(request(100), null, supervisorAuthentication()));
     }
 
     @Test
     void invalidQuantityIsRejected() {
-        when(assignments.existsBySupervisorIdAndOrderId(7L, 12L)).thenReturn(true);
+        when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(true);
         when(orders.findWithDetailsById(12L)).thenReturn(Optional.of(order));
         assertThrows(IllegalArgumentException.class,
                 () -> service.submit(request(0), null, supervisorAuthentication()));
@@ -87,7 +91,7 @@ class ProductionServiceTest {
 
     @Test
     void milestoneOutsideOrderIsRejected() {
-        when(assignments.existsBySupervisorIdAndOrderId(7L, 12L)).thenReturn(true);
+        when(assignments.existsBySupervisorIdAndOrderIdAndActiveTrue(7L, 12L)).thenReturn(true);
         when(orders.findWithDetailsById(12L)).thenReturn(Optional.of(order));
         ProductionDtos.CreateUpdateRequest request = new ProductionDtos.CreateUpdateRequest(
                 12L, 999L, LocalDate.now(), 100, null, "key-2");

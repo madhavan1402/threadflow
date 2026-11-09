@@ -10,6 +10,7 @@ import com.threadflow.buyer.Buyer;
 import com.threadflow.buyer.BuyerRepository;
 import com.threadflow.milestone.MilestoneTemplate;
 import com.threadflow.milestone.MilestoneTemplateRepository;
+import com.threadflow.production.SupervisorOrderAccessService;
 import com.threadflow.milestone.TemplateMilestone;
 import java.time.LocalDate;
 import java.util.List;
@@ -29,7 +30,7 @@ class OrderServiceTest {
         orders = mock(OrderRepository.class);
         buyers = mock(BuyerRepository.class);
         templates = mock(MilestoneTemplateRepository.class);
-        service = new OrderService(orders, buyers, templates);
+        service = new OrderService(orders, buyers, templates, mock(SupervisorOrderAccessService.class));
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.threadflow.buyer.BuyerRepository;
 import com.threadflow.milestone.MilestoneTemplate;
 import com.threadflow.milestone.MilestoneTemplateRepository;
 import com.threadflow.milestone.TemplateMilestone;
+import com.threadflow.production.SupervisorOrderAccessService;
 import com.threadflow.user.User;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
@@ -23,9 +24,12 @@ public class OrderService {
     private final OrderRepository orders;
     private final BuyerRepository buyers;
     private final MilestoneTemplateRepository templates;
+    private final SupervisorOrderAccessService supervisorAccess;
 
-    public OrderService(OrderRepository orders, BuyerRepository buyers, MilestoneTemplateRepository templates) {
+    public OrderService(OrderRepository orders, BuyerRepository buyers, MilestoneTemplateRepository templates,
+                        SupervisorOrderAccessService supervisorAccess) {
         this.orders = orders; this.buyers = buyers; this.templates = templates;
+        this.supervisorAccess = supervisorAccess;
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +58,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public OrderDtos.OrderResponse get(Long id, Authentication authentication) {
-        requireMerchandiser(authentication);
+        requireOrderReadAccess(id, authentication);
         return toResponse(orders.findWithDetailsById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id)));
     }
@@ -124,7 +128,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderDtos.MilestoneResponse> milestones(Long orderId, Authentication authentication) {
-        requireMerchandiser(authentication);
+        requireOrderReadAccess(orderId, authentication);
         return orders.findWithDetailsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId))
                 .getMilestones().stream().map(this::toMilestoneResponse).toList();
@@ -135,6 +139,20 @@ public class OrderService {
                 .noneMatch(a -> a.getAuthority().equals("ROLE_MERCHANDISER"))) {
             throw new org.springframework.security.access.AccessDeniedException("Order access is restricted to merchandisers");
         }
+    }
+
+    private boolean hasAuthority(Authentication authentication, String role) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_" + role));
+    }
+
+    private void requireOrderReadAccess(Long orderId, Authentication authentication) {
+        if (hasAuthority(authentication, "MERCHANDISER")) return;
+        if (hasAuthority(authentication, "SUPERVISOR") && authentication.getPrincipal() instanceof User supervisor) {
+            supervisorAccess.requireAccess(supervisor, orderId);
+            return;
+        }
+        throw new org.springframework.security.access.AccessDeniedException("Order access is restricted to assigned supervisors and merchandisers");
     }
 
     private void validateVariants(Integer total, List<OrderDtos.VariantRequest> variants) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { OrderTable, type Order } from './components/OrderTable';
+import { OrderAssignmentPanel } from './components/OrderAssignmentPanel';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
@@ -229,6 +230,7 @@ function OrderDetail({ id, onBack }: { id: number; onBack: () => void }) {
       <div className="detail-header"><div><p>{order.poNumber}</p><h2>{order.styleName}</h2></div><strong>{order.status}</strong></div>
       <dl className="detail-grid"><div><dt>Buyer</dt><dd>{order.buyer.buyerName}, {order.buyer.country}</dd></div><div><dt>Total quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div><div><dt>Ex-factory</dt><dd>{order.exFactoryDate}</dd></div></dl>
       <section className="variant-section"><h3>Color and size breakdown</h3>{order.variants.map(variant => <p key={variant.id ?? `${variant.color}-${variant.size}`}>{variant.color} · {variant.size} · {variant.quantity.toLocaleString()}</p>)}</section>
+      <OrderAssignmentPanel orderId={id} />
       <section className="timeline"><h3>TNA timeline</h3>{order.milestones.map(milestone => <article key={milestone.id}><div><strong>{milestone.sequenceNumber}. {milestone.milestoneName}</strong><span>{milestone.status}</span></div><p>{milestone.plannedStartDate} to {milestone.plannedEndDate}</p><p>{milestone.actualStartDate || 'Actual start: —'} · {milestone.actualCompletionDate || 'Actual completion: —'}</p></article>)}</section>
     </section>
   );
@@ -296,33 +298,58 @@ function SupervisorProductionWorkspace() {
 
   if (loading) return <section className="empty-panel">Loading production workspace...</section>;
   return (
-    <div className="production-layout">
-      <section className="production-entry">
-        <div className="section-heading"><div><p>Daily floor entry</p><h2>Record production</h2></div></div>
-        {formError && <div className="login-alert" role="alert">{formError} <button className="inline-retry" type="button" onClick={load}>Retry</button></div>}
-        {success && <div className="success-alert" role="status">{success}</div>}
-        <form onSubmit={submit} className="production-form">
-          <label>Order<select value={orderId} onChange={event => { setOrderId(event.target.value); setMilestoneId(''); }}><option value="">Select an order</option>{orders.map(order => <option key={order.id} value={order.id}>{order.poNumber} · {order.styleName}</option>)}</select></label>
-          <label>Production stage<select value={milestoneId} onChange={event => setMilestoneId(event.target.value)} disabled={!selectedOrder}><option value="">Select stage</option>{selectedOrder?.milestones.map(milestone => <option key={milestone.id} value={milestone.id}>{milestone.sequenceNumber}. {milestone.milestoneName}</option>)}</select></label>
-          <div className="production-fields">
-            <label>Production date<input type="date" max={productionDate} value={productionDate} onChange={event => setProductionDate(event.target.value)} /></label>
-            <label>Completed quantity<input type="number" min="1" step="1" inputMode="numeric" value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="0" /></label>
-          </div>
-          <label>Issue note<textarea value={issueNote} maxLength={5000} onChange={event => setIssueNote(event.target.value)} placeholder="Tamil or English" /></label>
-          <label className="photo-input">Production photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event => {
-            const selected = Array.from(event.target.files || []);
-            const validation = validatePhotos(selected);
-            photoPreviews.forEach(url => URL.revokeObjectURL(url));
-            setPhotoError(validation);
-            setPhotos(validation ? [] : selected);
-            setPhotoPreviews(validation ? [] : selected.map(file => URL.createObjectURL(file)));
-          }} /><span>JPEG, PNG or WebP · 10 MB per photo</span></label>
-          {photoError && <p className="field-error">{photoError}</p>}
-          {photoPreviews.length > 0 && <div className="photo-previews">{photos.map((file, index) => <img key={`${file.name}-${index}`} src={URL.createObjectURL(file)} alt={file.name} />)}</div>}
-          <button className="primary-action production-submit" type="submit" disabled={submitting}>{submitting ? 'Saving...' : 'Save production update'}</button>
-        </form>
-      </section>
-      <ProductionHistoryContent updates={updates} title="My update history" emptyText="No production updates recorded yet." />
+    <div className="supervisor-workspace">
+      {orders.length === 0 ? (
+        <section className="empty-panel supervisor-empty" role={formError ? 'alert' : 'status'}>
+          <h2>{formError ? 'Production orders unavailable' : 'No production orders assigned'}</h2>
+          <p>{formError || 'Orders assigned to your production units or directly to your account will appear here.'}</p>
+          <button className="state-action" type="button" onClick={() => void load()}>Retry</button>
+        </section>
+      ) : <>
+        <section className="assigned-orders" aria-labelledby="assigned-orders-title">
+          <div className="section-heading"><div><p>Work available to this account</p><h2 id="assigned-orders-title">Assigned orders</h2></div><span>{orders.length} orders</span></div>
+          <div className="assigned-order-list">{orders.map(order => (
+            <article className={`assigned-order ${orderId === String(order.id) ? 'selected' : ''}`} key={order.id}>
+              <div className="assigned-order-heading"><strong>{order.poNumber}</strong><span>{order.assignmentSource}</span></div>
+              <p>{order.buyerName} · {order.styleName}</p>
+              <dl><div><dt>Production unit</dt><dd>{order.productionUnit?.name || 'No unit assigned'}</dd></div>
+                <div><dt>Quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div>
+                <div><dt>Ex-factory</dt><dd>{order.exFactoryDate}</dd></div></dl>
+              <button className="state-action" type="button" onClick={() => { setOrderId(String(order.id)); setMilestoneId(''); }}>
+                {orderId === String(order.id) ? 'Selected for update' : 'Record production'}
+              </button>
+            </article>
+          ))}</div>
+        </section>
+        <div className="production-layout">
+          <section className="production-entry">
+            <div className="section-heading"><div><p>Daily floor entry</p><h2>Record production</h2></div></div>
+            {formError && <div className="login-alert" role="alert">{formError} <button className="inline-retry" type="button" onClick={load}>Retry</button></div>}
+            {success && <div className="success-alert" role="status">{success}</div>}
+            <form onSubmit={submit} className="production-form">
+              <label>Order<select value={orderId} onChange={event => { setOrderId(event.target.value); setMilestoneId(''); }}><option value="">Select an order</option>{orders.map(order => <option key={order.id} value={order.id}>{order.poNumber} · {order.styleName}</option>)}</select></label>
+              <label>Production stage<select value={milestoneId} onChange={event => setMilestoneId(event.target.value)} disabled={!selectedOrder}><option value="">Select stage</option>{selectedOrder?.milestones.map(milestone => <option key={milestone.id} value={milestone.id}>{milestone.sequenceNumber}. {milestone.milestoneName}</option>)}</select></label>
+              <div className="production-fields">
+                <label>Production date<input type="date" max={productionDate} value={productionDate} onChange={event => setProductionDate(event.target.value)} /></label>
+                <label>Completed quantity<input type="number" min="1" step="1" inputMode="numeric" value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="0" /></label>
+              </div>
+              <label>Issue note<textarea value={issueNote} maxLength={5000} onChange={event => setIssueNote(event.target.value)} placeholder="Tamil or English" /></label>
+              <label className="photo-input">Production photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event => {
+                const selected = Array.from(event.target.files || []);
+                const validation = validatePhotos(selected);
+                photoPreviews.forEach(url => URL.revokeObjectURL(url));
+                setPhotoError(validation);
+                setPhotos(validation ? [] : selected);
+                setPhotoPreviews(validation ? [] : selected.map(file => URL.createObjectURL(file)));
+              }} /><span>JPEG, PNG or WebP · 10 MB per photo</span></label>
+              {photoError && <p className="field-error">{photoError}</p>}
+              {photoPreviews.length > 0 && <div className="photo-previews">{photos.map((file, index) => <img key={`${file.name}-${index}`} src={URL.createObjectURL(file)} alt={file.name} />)}</div>}
+              <button className="primary-action production-submit" type="submit" disabled={submitting}>{submitting ? 'Saving...' : 'Save production update'}</button>
+            </form>
+          </section>
+          <ProductionHistoryContent updates={updates} title="My update history" emptyText="No production updates recorded yet." />
+        </div>
+      </>}
     </div>
   );
 }

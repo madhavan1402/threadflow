@@ -23,7 +23,8 @@ public class ProductionDtos {
     ) {}
     public record AvailableOrderResponse(
             Long id, String poNumber, String styleName, String buyerName,
-            Integer totalQuantity, LocalDate exFactoryDate, List<MilestoneResponse> milestones
+            Integer totalQuantity, LocalDate exFactoryDate, AssignmentDtos.ProductionUnitResponse productionUnit,
+            String assignmentSource, List<MilestoneResponse> milestones
     ) {}
     public record MilestoneResponse(Long id, String milestoneName, Integer sequenceNumber, String status) {}
 }

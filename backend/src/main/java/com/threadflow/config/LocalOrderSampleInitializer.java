@@ -11,29 +11,40 @@ import com.threadflow.order.ProductionOrder;
 import com.threadflow.order.OrderMilestone;
 import com.threadflow.production.SupervisorOrderAssignment;
 import com.threadflow.production.SupervisorOrderAssignmentRepository;
+import com.threadflow.production.ProductionUnit;
+import com.threadflow.production.ProductionUnitRepository;
+import com.threadflow.production.SupervisorUnitAssignment;
+import com.threadflow.production.SupervisorUnitAssignmentRepository;
 import com.threadflow.user.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Profile("local")
+@Order(2)
 public class LocalOrderSampleInitializer implements ApplicationRunner {
     private final BuyerRepository buyers;
     private final MilestoneTemplateRepository templates;
     private final OrderRepository orders;
     private final UserRepository users;
     private final SupervisorOrderAssignmentRepository assignments;
+        private final ProductionUnitRepository units;
+        private final SupervisorUnitAssignmentRepository unitAssignments;
 
     public LocalOrderSampleInitializer(BuyerRepository buyers, MilestoneTemplateRepository templates,
                                        OrderRepository orders, UserRepository users,
-                                       SupervisorOrderAssignmentRepository assignments) {
+                                       SupervisorOrderAssignmentRepository assignments,
+                                       ProductionUnitRepository units,
+                                       SupervisorUnitAssignmentRepository unitAssignments) {
         this.buyers = buyers; this.templates = templates; this.orders = orders;
-        this.users = users; this.assignments = assignments;
+        this.users = users; this.assignments = assignments; this.units = units;
+        this.unitAssignments = unitAssignments;
     }
 
     @Override
@@ -64,12 +75,27 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
         createOrder("C-PO-0488", buyerC, "Kids printed tee yellow",
                 "Kids printed tee in yellow", 10000, LocalDate.of(2026, 11, 28), template);
 
-        users.findByEmailIgnoreCase("supervisor@local.threadflow").ifPresent(supervisor ->
-                orders.findAll().forEach(order -> {
-                    if (!assignments.existsBySupervisorIdAndOrderId(supervisor.getId(), order.getId())) {
-                        assignments.save(new SupervisorOrderAssignment(supervisor, order));
-                    }
-                }));
+        ProductionUnit stitchingOne = ensureUnit("Stitching Unit 1", "STITCH-1", "Main garment stitching floor");
+        ProductionUnit stitchingTwo = ensureUnit("Stitching Unit 2", "STITCH-2", "Secondary stitching floor");
+        ProductionUnit printing = ensureUnit("Printing Unit", "PRINT", "Screen and digital print facility");
+        assignUnit("B-PO-88213", stitchingOne);
+        assignUnit("B-PO-88240", stitchingTwo);
+        assignUnit("C-PO-0488", printing);
+
+        users.findByEmailIgnoreCase("supervisor@local.threadflow").ifPresent(supervisor -> {
+            if (!supervisor.isEnabled() || !supervisor.hasRole("SUPERVISOR")) return;
+            ensureMembership(supervisor, stitchingOne);
+            ensureMembership(supervisor, stitchingTwo);
+            orders.findByPoNumberIgnoreCase("C-PO-0488").ifPresent(order -> {
+                if (!assignments.existsBySupervisorIdAndOrderId(supervisor.getId(), order.getId())) {
+                    assignments.save(new SupervisorOrderAssignment(supervisor, order, supervisor));
+                }
+            });
+            assignments.findBySupervisorIdAndActiveTrue(supervisor.getId()).stream()
+                    .filter(assignment -> !List.of("B-PO-88213", "B-PO-88240", "C-PO-0488")
+                            .contains(assignment.getOrder().getPoNumber()))
+                    .forEach(assignment -> assignment.revoke(java.time.Instant.now()));
+        });
     }
 
     private void createOrder(String po, Buyer buyer, String style, String description, int quantity,
@@ -86,5 +112,25 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
             start = end;
         }
         orders.save(order);
+    }
+
+    private ProductionUnit ensureUnit(String name, String code, String description) {
+        return units.findByCodeIgnoreCase(code).orElseGet(() -> units.save(
+                new ProductionUnit(name, code, description, true)));
+    }
+
+    private void assignUnit(String poNumber, ProductionUnit unit) {
+        orders.findByPoNumberIgnoreCase(poNumber).ifPresent(order -> {
+            if (order.getProductionUnit() == null) {
+                order.assignProductionUnit(unit);
+                orders.save(order);
+            }
+        });
+    }
+
+    private void ensureMembership(com.threadflow.user.User supervisor, ProductionUnit unit) {
+        if (!unitAssignments.existsBySupervisorIdAndProductionUnitId(supervisor.getId(), unit.getId())) {
+            unitAssignments.save(new SupervisorUnitAssignment(supervisor, unit, supervisor));
+        }
     }
 }

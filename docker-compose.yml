@@ -1,21 +1,22 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8.0
     container_name: threadflow-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: threadflow
-      POSTGRES_USER: threadflow_app
-      POSTGRES_PASSWORD: change_me_locally
+      MYSQL_DATABASE: threadflow
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME:-threadflow_app}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set SPRING_DATASOURCE_PASSWORD in your environment}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in your environment}
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - threadflow_pgdata:/var/lib/postgresql/data
+      - threadflow_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U threadflow_app -d threadflow"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
-  threadflow_pgdata:
+  threadflow_mysql_data:

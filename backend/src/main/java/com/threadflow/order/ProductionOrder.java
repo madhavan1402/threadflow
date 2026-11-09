@@ -1,6 +1,7 @@
 package com.threadflow.order;
 
 import com.threadflow.buyer.Buyer;
+import com.threadflow.production.ProductionUnit;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -14,6 +15,8 @@ public class ProductionOrder {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "buyer_id", nullable = false) private Buyer buyer;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "production_unit_id") private ProductionUnit productionUnit;
     @Column(name = "po_number", nullable = false, unique = true) private String poNumber;
     @Column(name = "style_name", nullable = false) private String styleName;
     @Column(name = "product_description") private String productDescription;
@@ -41,6 +44,7 @@ public class ProductionOrder {
         this.buyer = buyer; this.styleName = styleName; this.productDescription = productDescription;
         this.totalQuantity = totalQuantity; this.exFactoryDate = exFactoryDate; this.status = status;
     }
+    public void assignProductionUnit(ProductionUnit productionUnit) { this.productionUnit = productionUnit; }
     public void addVariant(OrderVariant variant) { variants.add(variant); }
     public void addMilestone(OrderMilestone milestone) { milestones.add(milestone); }
     public void replaceVariants(List<OrderVariant> replacements) { variants.clear(); replacements.forEach(this::addVariant); }
@@ -48,6 +52,7 @@ public class ProductionOrder {
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
     public Long getId() { return id; }
     public Buyer getBuyer() { return buyer; }
+    public ProductionUnit getProductionUnit() { return productionUnit; }
     public String getPoNumber() { return poNumber; }
     public String getStyleName() { return styleName; }
     public String getProductDescription() { return productDescription; }

@@ -17,30 +17,31 @@ import org.springframework.web.multipart.MultipartFile;
 public class ProductionService {
     private final ProductionUpdateRepository updates;
     private final ProductionPhotoRepository photoRepository;
-    private final SupervisorOrderAssignmentRepository assignments;
+    private final SupervisorOrderAccessService supervisorAccess;
     private final OrderRepository orders;
     private final ProductionPhotoStorage storage;
 
     public ProductionService(ProductionUpdateRepository updates, ProductionPhotoRepository photoRepository,
-                             SupervisorOrderAssignmentRepository assignments, OrderRepository orders,
+                             SupervisorOrderAssignmentRepository assignments, SupervisorOrderAccessService supervisorAccess,
+                             OrderRepository orders,
                              ProductionPhotoStorage storage) {
-        this.updates = updates; this.photoRepository = photoRepository; this.assignments = assignments;
+        this.updates = updates; this.photoRepository = photoRepository;
+        this.supervisorAccess = supervisorAccess;
         this.orders = orders; this.storage = storage;
     }
 
     @Transactional(readOnly = true)
     public List<ProductionDtos.AvailableOrderResponse> availableOrders(Authentication authentication) {
         User supervisor = requireSupervisor(authentication);
-        return assignments.findBySupervisorId(supervisor.getId()).stream()
-                .map(a -> orders.findWithDetailsById(a.getOrder().getId()).orElse(null))
-                .filter(java.util.Objects::nonNull)
-                .map(this::toAvailable).toList();
+        List<Long> accessibleIds = supervisorAccess.accessibleOrderIds(supervisor.getId());
+        return orders.findDistinctByIdIn(accessibleIds).stream()
+                .map(order -> toAvailable(order, supervisor.getId())).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ProductionDtos.MilestoneResponse> milestones(Long orderId, Authentication authentication) {
         User supervisor = requireSupervisor(authentication);
-        requireAssignment(supervisor, orderId);
+        supervisorAccess.requireAccess(supervisor, orderId);
         ProductionOrder order = orders.findWithDetailsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         return order.getMilestones().stream().map(m -> new ProductionDtos.MilestoneResponse(
@@ -51,7 +52,7 @@ public class ProductionService {
     public ProductionDtos.UpdateResponse submit(ProductionDtos.CreateUpdateRequest request,
                                                 List<MultipartFile> photos, Authentication authentication) {
         User supervisor = requireSupervisor(authentication);
-        requireAssignment(supervisor, request.orderId());
+        supervisorAccess.requireAccess(supervisor, request.orderId());
         ProductionUpdate existing = updates.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (!existing.getSupervisor().getId().equals(supervisor.getId())) throw new AccessDeniedException("Idempotency key belongs to another supervisor");
@@ -89,7 +90,9 @@ public class ProductionService {
     @Transactional(readOnly = true)
     public List<ProductionDtos.UpdateResponse> myUpdates(Authentication authentication) {
         User supervisor = requireSupervisor(authentication);
-        return updates.findBySupervisorIdOrderByProductionDateDescCreatedAtDesc(supervisor.getId()).stream().map(this::toResponse).toList();
+        return updates.findBySupervisorIdOrderByProductionDateDescCreatedAtDesc(supervisor.getId()).stream()
+                .filter(update -> supervisorAccess.hasAccess(supervisor.getId(), update.getOrder().getId()))
+                .map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -102,15 +105,24 @@ public class ProductionService {
 
     @Transactional(readOnly = true)
     public List<ProductionDtos.UpdateResponse> orderUpdates(Long orderId, Authentication authentication) {
-        requireMerchandiser(authentication);
+        if (!hasAuthority(authentication, "MERCHANDISER")) {
+            User supervisor = requireSupervisor(authentication);
+            supervisorAccess.requireAccess(supervisor, orderId);
+        }
         if (!orders.existsById(orderId)) throw new IllegalArgumentException("Order not found: " + orderId);
         return updates.findByOrderIdOrderByProductionDateDescCreatedAtDesc(orderId).stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ProductionDtos.UpdateResponse> milestoneUpdates(Long milestoneId, Authentication authentication) {
-        requireMerchandiser(authentication);
-        return updates.findByMilestoneIdOrderByProductionDateDescCreatedAtDesc(milestoneId).stream().map(this::toResponse).toList();
+        if (hasAuthority(authentication, "MERCHANDISER")) {
+            return updates.findByMilestoneIdOrderByProductionDateDescCreatedAtDesc(milestoneId).stream()
+                    .map(this::toResponse).toList();
+        }
+        User supervisor = requireSupervisor(authentication);
+        return updates.findByMilestoneIdOrderByProductionDateDescCreatedAtDesc(milestoneId).stream()
+            .filter(update -> supervisorAccess.hasAccess(supervisor.getId(), update.getOrder().getId()))
+            .map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +132,7 @@ public class ProductionService {
         if (hasAuthority(authentication, "MERCHANDISER")) return photo;
         if (hasAuthority(authentication, "SUPERVISOR")) {
             User supervisor = requireSupervisor(authentication);
-            requireAssignment(supervisor, update.getOrder().getId());
+            supervisorAccess.requireAccess(supervisor, update.getOrder().getId());
             return photo;
         }
         throw new AccessDeniedException("Insufficient role");
@@ -132,17 +144,20 @@ public class ProductionService {
         return user;
     }
     private void requireMerchandiser(Authentication authentication) {
-        if (authentication == null || !hasAuthority(authentication, "MERCHANDISER")) throw new AccessDeniedException("Merchandiser role required");
-    }
-    private void requireAssignment(User supervisor, Long orderId) {
-        if (!assignments.existsBySupervisorIdAndOrderId(supervisor.getId(), orderId)) throw new AccessDeniedException("You are not assigned to this order");
+        if (!hasAuthority(authentication, "MERCHANDISER")) throw new AccessDeniedException("Merchandiser role required");
     }
     private boolean hasAuthority(Authentication authentication, String role) {
-        return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
     }
-    private ProductionDtos.AvailableOrderResponse toAvailable(ProductionOrder order) {
+    private ProductionDtos.AvailableOrderResponse toAvailable(ProductionOrder order, Long supervisorId) {
         return new ProductionDtos.AvailableOrderResponse(order.getId(), order.getPoNumber(), order.getStyleName(),
                 order.getBuyer().getBuyerName(), order.getTotalQuantity(), order.getExFactoryDate(),
+                order.getProductionUnit() == null ? null : new AssignmentDtos.ProductionUnitResponse(
+                        order.getProductionUnit().getId(), order.getProductionUnit().getName(),
+                        order.getProductionUnit().getCode(), order.getProductionUnit().getDescription(),
+                        order.getProductionUnit().isActive()),
+                supervisorAccess.assignmentSource(supervisorId, order),
                 order.getMilestones().stream().map(m -> new ProductionDtos.MilestoneResponse(
                         m.getId(), m.getMilestoneName(), m.getSequenceNumber(), m.getStatus().name())).toList());
     }

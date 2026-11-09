@@ -1,6 +1,8 @@
 package com.threadflow.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,5 +77,27 @@ class SecurityAuthorizationTest {
     void supervisorCannotAccessMerchandiserProductionHistory() throws Exception {
         mockMvc.perform(get("/api/v1/production/updates"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPERVISOR")
+    void supervisorCannotManageProductionAssignments() throws Exception {
+        mockMvc.perform(put("/api/v1/orders/1/supervisors")
+                        .with(csrf())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"supervisorIds\":[]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "MERCHANDISER")
+    void merchandiserCanCreateProductionUnit() throws Exception {
+        String code = "TEST-" + System.nanoTime();
+        mockMvc.perform(post("/api/v1/production-units")
+                        .with(csrf())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Test unit " + code + "\",\"code\":\"" + code
+                                + "\",\"description\":\"Authorization test\",\"active\":true}"))
+                .andExpect(status().isCreated());
     }
 }

@@ -1,7 +1,9 @@
 export type ProductionMilestone = { id: number; milestoneName: string; sequenceNumber: number; status: string };
 export type AvailableOrder = {
   id: number; poNumber: string; styleName: string; buyerName: string;
-  totalQuantity: number; exFactoryDate: string; milestones: ProductionMilestone[];
+  totalQuantity: number; exFactoryDate: string;
+  productionUnit: { id: number; name: string; code: string; description?: string | null; active: boolean } | null;
+  assignmentSource: 'UNIT' | 'DIRECT' | 'BOTH'; milestones: ProductionMilestone[];
 };
 export type ProductionPhoto = { id: number; originalFilename: string; contentType: string; fileSize: number };
 export type ProductionUpdate = {

@@ -18,7 +18,7 @@ Create the local `threadflow` database, then configure the datasource with envir
 ```powershell
 $env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/threadflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
 $env:SPRING_DATASOURCE_USERNAME="threadflow_app"
-$env:SPRING_DATASOURCE_PASSWORD="change_me_locally"
+$env:SPRING_DATASOURCE_PASSWORD="<local-database-password>"
 ```
 
 ## Start backend
@@ -53,9 +53,9 @@ starts with the `local` Spring profile and matching environment variables:
 ```powershell
 $env:SPRING_PROFILES_ACTIVE="local"
 $env:THREADFLOW_DEMO_MERCHANDISER_EMAIL="merchandiser@local.threadflow"
-$env:THREADFLOW_DEMO_MERCHANDISER_PASSWORD="MerchLocal!2026"
+$env:THREADFLOW_DEMO_MERCHANDISER_PASSWORD="<local-password-at-least-12-characters>"
 $env:THREADFLOW_DEMO_SUPERVISOR_EMAIL="supervisor@local.threadflow"
-$env:THREADFLOW_DEMO_SUPERVISOR_PASSWORD="SuperLocal!2026"
+$env:THREADFLOW_DEMO_SUPERVISOR_PASSWORD="<local-password-at-least-12-characters>"
 $env:THREADFLOW_JWT_SECRET="<local-random-secret-at-least-32-characters>"
 $env:THREADFLOW_COOKIE_SECURE="false"
 ```
@@ -77,7 +77,7 @@ Start the backend after setting the variables above. In a second PowerShell sess
 ```powershell
 $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $csrf = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/auth/csrf" -WebSession $session
-$body = @{ email = "merchandiser@local.threadflow"; password = "MerchLocal!2026" } |
+$body = @{ email = $env:THREADFLOW_DEMO_MERCHANDISER_EMAIL; password = $env:THREADFLOW_DEMO_MERCHANDISER_PASSWORD } |
   ConvertTo-Json
 $login = Invoke-RestMethod `
   -Uri "http://localhost:8080/api/v1/auth/login" `
@@ -88,7 +88,8 @@ $login = Invoke-RestMethod `
   -Body $body
 $login
 
-# Repeat with supervisor@local.threadflow / SuperLocal!2026 for the supervisor account.
+# For the supervisor account, use THREADFLOW_DEMO_SUPERVISOR_EMAIL and
+# THREADFLOW_DEMO_SUPERVISOR_PASSWORD for the email and password values above.
 ```
 
 The "Insufficient role" API response means an authenticated user attempted to access a workspace
