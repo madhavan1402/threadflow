@@ -7,6 +7,7 @@ import com.threadflow.milestone.MilestoneTemplateRepository;
 import com.threadflow.milestone.TemplateMilestone;
 import com.threadflow.production.SupervisorOrderAccessService;
 import com.threadflow.user.User;
+import com.threadflow.user.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -25,11 +26,24 @@ public class OrderService {
     private final BuyerRepository buyers;
     private final MilestoneTemplateRepository templates;
     private final SupervisorOrderAccessService supervisorAccess;
+    private final com.threadflow.order.audit.OrderAuditService auditService;
+    private final UserRepository users;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OrderService(OrderRepository orders, BuyerRepository buyers, MilestoneTemplateRepository templates,
-                        SupervisorOrderAccessService supervisorAccess) {
+                        SupervisorOrderAccessService supervisorAccess,
+                        com.threadflow.order.audit.OrderAuditService auditService,
+                        UserRepository users) {
         this.orders = orders; this.buyers = buyers; this.templates = templates;
         this.supervisorAccess = supervisorAccess;
+        this.auditService = auditService;
+        this.users = users;
+    }
+
+    public OrderService(OrderRepository orders, BuyerRepository buyers, MilestoneTemplateRepository templates,
+                        SupervisorOrderAccessService supervisorAccess,
+                        com.threadflow.order.audit.OrderAuditService auditService) {
+        this(orders, buyers, templates, supervisorAccess, auditService, null);
     }
 
     @Transactional(readOnly = true)
@@ -91,6 +105,12 @@ public class OrderService {
     @PreAuthorize("hasRole('MERCHANDISER')")
     @Transactional
     public OrderDtos.OrderResponse update(Long id, OrderDtos.UpdateOrderRequest request) {
+        return update(id, request, null);
+    }
+
+    @PreAuthorize("hasRole('MERCHANDISER')")
+    @Transactional
+    public OrderDtos.OrderResponse update(Long id, OrderDtos.UpdateOrderRequest request, Authentication authentication) {
         ProductionOrder order = orders.findWithDetailsById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
         validateVariants(request.totalQuantity(), request.variants().stream()
@@ -100,11 +120,43 @@ public class OrderService {
         ProductionOrder.Status status;
         try { status = ProductionOrder.Status.valueOf(request.status()); }
         catch (IllegalArgumentException ex) { throw new IllegalArgumentException("Invalid order status: " + request.status()); }
+
+        LocalDate previousDate = order.getExFactoryDate();
+        LocalDate newDate = request.exFactoryDate();
+
         order.update(buyer, request.styleName().trim(), request.productDescription(),
-                request.totalQuantity(), request.exFactoryDate(), status);
+                request.totalQuantity(), newDate, status);
         order.replaceVariants(request.variants().stream()
                 .map(v -> new OrderVariant(order, v.color().trim(), v.size().trim(), v.quantity())).toList());
-        return toResponse(orders.save(order));
+        ProductionOrder saved = orders.save(order);
+
+        if (!previousDate.equals(newDate)) {
+            User user = authentication != null && authentication.getPrincipal() instanceof User u ? u : null;
+            if (user != null) {
+                auditService.recordDateChange(saved, previousDate, newDate, "Order updated by merchandiser", user);
+            }
+        }
+        return toResponse(saved);
+    }
+
+    @PreAuthorize("hasRole('MERCHANDISER')")
+    @Transactional
+    public OrderDtos.OrderResponse changeExFactoryDate(Long id, com.threadflow.order.audit.OrderAuditDtos.DateChangeRequest request,
+                                                       Authentication authentication) {
+        User merchandiser = requireMerchandiserUser(authentication);
+        ProductionOrder order = orders.findWithDetailsById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+        LocalDate previousDate = order.getExFactoryDate();
+        LocalDate newDate = request.newExFactoryDate();
+
+        if (previousDate.equals(newDate)) {
+            throw new IllegalArgumentException("New ex-factory date must be different from current date");
+        }
+
+        order.updateExFactoryDate(newDate);
+        ProductionOrder saved = orders.save(order);
+        auditService.recordDateChange(saved, previousDate, newDate, request.reason().trim(), merchandiser);
+        return toResponse(saved);
     }
 
     @PreAuthorize("hasRole('MERCHANDISER')")
@@ -139,6 +191,17 @@ public class OrderService {
                 .noneMatch(a -> a.getAuthority().equals("ROLE_MERCHANDISER"))) {
             throw new org.springframework.security.access.AccessDeniedException("Order access is restricted to merchandisers");
         }
+    }
+
+    private User requireMerchandiserUser(Authentication authentication) {
+        requireMerchandiser(authentication);
+        if (authentication.getPrincipal() instanceof User user) {
+            return user;
+        }
+        if (authentication != null && authentication.getName() != null && users != null) {
+            return users.findByEmailIgnoreCase(authentication.getName()).orElse(null);
+        }
+        return null;
     }
 
     private boolean hasAuthority(Authentication authentication, String role) {

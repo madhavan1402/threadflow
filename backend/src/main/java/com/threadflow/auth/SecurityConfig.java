@@ -1,5 +1,6 @@
 package com.threadflow.auth;
 
+import com.threadflow.buyer.portal.BuyerAuthenticationFilter;
 import com.threadflow.common.dto.ApiErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,10 +23,14 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @EnableMethodSecurity
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final BuyerAuthenticationFilter buyerAuthenticationFilter;
     private final ObjectMapper objectMapper;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          BuyerAuthenticationFilter buyerAuthenticationFilter,
+                          ObjectMapper objectMapper) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.buyerAuthenticationFilter = buyerAuthenticationFilter;
         this.objectMapper = objectMapper;
     }
 
@@ -46,11 +51,13 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/api/v1/buyer/**")
                         .csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/health", "/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
+                        .requestMatchers("/api/v1/buyer/**").hasRole("BUYER")
                         .requestMatchers("/api/v1/workspaces/merchandiser/**").hasRole("MERCHANDISER")
                         .requestMatchers("/api/v1/workspaces/supervisor/**").hasRole("SUPERVISOR")
                         .requestMatchers("/api/v1/orders/**").authenticated()
@@ -63,6 +70,7 @@ public class SecurityConfig {
                                 writeError(response, request.getRequestURI(), HttpStatus.UNAUTHORIZED, "Authentication required"))
                         .accessDeniedHandler((request, response, exception) ->
                                 writeError(response, request.getRequestURI(), HttpStatus.FORBIDDEN, "Insufficient role")))
+                .addFilterBefore(buyerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

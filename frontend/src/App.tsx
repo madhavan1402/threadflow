@@ -5,6 +5,9 @@ import { OrderTable, type Order } from './components/OrderTable';
 import { OrderAssignmentPanel } from './components/OrderAssignmentPanel';
 import { OrderDelayRiskPanel, ProductionDelaySummary } from './components/ProductionDelayView';
 import { IssueReviewPanel } from './components/IssueReviewPanel';
+import { BuyerPortal } from './components/BuyerPortal';
+import { OrderAuditHistoryModal } from './components/OrderAuditHistoryModal';
+import { BuyerWarningPanel } from './components/BuyerWarningPanel';
 import { useAuth } from './auth/AuthProvider';
 import { getDefaultWorkspacePath, isPathWorkspaceAllowed } from './auth/auth';
 import { ordersApi, type Buyer, type Template } from './api/orders';
@@ -66,10 +69,15 @@ function App() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!loading && !user && window.location.pathname !== '/login') window.history.replaceState({}, '', '/login');
-  }, [loading, user]);
+  const isBuyerRoute = window.location.pathname === '/buyer' || activeHash === '#buyer';
 
+  useEffect(() => {
+    if (!loading && !user && window.location.pathname !== '/login' && !isBuyerRoute) {
+      window.history.replaceState({}, '', '/login');
+    }
+  }, [loading, user, isBuyerRoute]);
+
+  if (isBuyerRoute) return <BuyerPortal />;
   if (loading) return <main className="auth-loading" role="status">Opening ThreadFlow workspace...</main>;
   if (!user) return <LoginScreen />;
   if (!isPathWorkspaceAllowed(window.location.pathname, user.roles)) {
@@ -230,20 +238,62 @@ function CreateOrder({ buyers, templates, onClose, onCreated }: {
 function OrderDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+
   useEffect(() => {
     ordersApi.get(id).then(setOrder).catch(cause => setError(cause instanceof Error ? cause.message : 'Order could not be loaded.'));
   }, [id]);
+
   if (error) return <section className="empty-panel"><h2>Order unavailable</h2><p>{error}</p><button className="state-action" onClick={onBack}>Back to orders</button></section>;
   if (!order) return <section className="empty-panel">Loading order...</section>;
+
   return (
     <section>
-      <button className="state-action" type="button" onClick={onBack}>Back to orders</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <button className="state-action" type="button" onClick={onBack}>Back to orders</button>
+        <button
+          className="button button-primary"
+          type="button"
+          onClick={() => setAuditModalOpen(true)}
+          data-testid="open-audit-history-btn"
+        >
+          Date Revision Audit Trail
+        </button>
+      </div>
       <div className="detail-header"><div><p>{order.poNumber}</p><h2>{order.styleName}</h2></div><strong>{order.status}</strong></div>
-      <dl className="detail-grid"><div><dt>Buyer</dt><dd>{order.buyer.buyerName}, {order.buyer.country}</dd></div><div><dt>Total quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div><div><dt>Ex-factory</dt><dd>{order.exFactoryDate}</dd></div></dl>
+      <dl className="detail-grid">
+        <div><dt>Buyer</dt><dd>{order.buyer.buyerName}, {order.buyer.country}</dd></div>
+        <div><dt>Total quantity</dt><dd>{order.totalQuantity.toLocaleString()}</dd></div>
+        <div>
+          <dt>Ex-factory</dt>
+          <dd>
+            {order.exFactoryDate}
+            <button
+              type="button"
+              className="state-action"
+              style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
+              onClick={() => setAuditModalOpen(true)}
+            >
+              Revise Date
+            </button>
+          </dd>
+        </div>
+      </dl>
       <OrderDelayRiskPanel orderId={id} />
+      <BuyerWarningPanel orderId={id} poNumber={order.poNumber} />
       <section className="variant-section"><h3>Color and size breakdown</h3>{order.variants.map(variant => <p key={variant.id ?? `${variant.color}-${variant.size}`}>{variant.color} · {variant.size} · {variant.quantity.toLocaleString()}</p>)}</section>
       <OrderAssignmentPanel orderId={id} />
       <section className="timeline"><h3>TNA timeline</h3>{order.milestones.map(milestone => <article key={milestone.id}><div><strong>{milestone.sequenceNumber}. {milestone.milestoneName}</strong><span>{milestone.status}</span></div><p>{milestone.plannedStartDate} to {milestone.plannedEndDate}</p><p>{milestone.actualStartDate || 'Actual start: —'} · {milestone.actualCompletionDate || 'Actual completion: —'}</p></article>)}</section>
+
+      {auditModalOpen && (
+        <OrderAuditHistoryModal
+          order={order}
+          onClose={() => setAuditModalOpen(false)}
+          onDateUpdated={(newDate) => {
+            setOrder(prev => prev ? { ...prev, exFactoryDate: newDate } : null);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -383,7 +433,21 @@ function ProductionHistory() {
 }
 
 function ProductionHistoryContent({ updates, title, emptyText }: { updates: ProductionUpdate[]; title: string; emptyText: string }) {
+  const { user } = useAuth();
+  const isMerchandiser = !!user?.roles.includes('MERCHANDISER');
   const [query, setQuery] = useState('');
+  const [photoApprovals, setPhotoApprovals] = useState<Record<number, boolean>>({});
+
+  const toggleApproval = async (photoId: number, currentApproved: boolean) => {
+    const next = !currentApproved;
+    try {
+      await productionApi.setPhotoBuyerApproval(photoId, next);
+      setPhotoApprovals(prev => ({ ...prev, [photoId]: next }));
+    } catch (err) {
+      console.error('Failed to toggle photo approval', err);
+    }
+  };
+
   const filtered = updates.filter(update =>
     `${update.poNumber} ${update.milestoneName} ${update.supervisorEmail} ${update.issueNote || ''}`
       .toLowerCase().includes(query.toLowerCase()));
@@ -397,7 +461,31 @@ function ProductionHistoryContent({ updates, title, emptyText }: { updates: Prod
           <div className="update-quantity"><strong>{update.completedQuantity.toLocaleString()}</strong><span>completed</span></div>
           {update.issueNote && <p className="issue-note">{update.issueNote}</p>}
           <small>{update.supervisorEmail}</small>
-          {update.photos.length > 0 && <div className="production-photo-links">{update.photos.map(photo => <a key={photo.id} href={productionApi.photoUrl(photo.id)} target="_blank" rel="noreferrer">{photo.originalFilename}</a>)}</div>}
+          {update.photos.length > 0 && (
+            <div className="production-photo-links">
+              {update.photos.map(photo => {
+                const approved = photoApprovals[photo.id] ?? photo.approvedForBuyer ?? false;
+                return (
+                  <div key={photo.id} className="photo-approval-badge-wrap">
+                    <a href={productionApi.photoUrl(photo.id)} target="_blank" rel="noreferrer">
+                      {photo.originalFilename}
+                    </a>
+                    {isMerchandiser && (
+                      <button
+                        type="button"
+                        className={`state-action photo-approve-btn ${approved ? 'approved' : ''}`}
+                        onClick={() => void toggleApproval(photo.id, approved)}
+                        title={approved ? 'Visible in buyer portal. Click to unapprove.' : 'Hidden from buyer portal. Click to approve.'}
+                        data-testid={`toggle-photo-approval-${photo.id}`}
+                      >
+                        {approved ? '✓ Approved for Buyer' : 'Approve for Buyer'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </article>
       ))}</div>}
     </section>

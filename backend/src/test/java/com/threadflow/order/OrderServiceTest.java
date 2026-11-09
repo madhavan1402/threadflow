@@ -12,6 +12,7 @@ import com.threadflow.milestone.MilestoneTemplate;
 import com.threadflow.milestone.MilestoneTemplateRepository;
 import com.threadflow.production.SupervisorOrderAccessService;
 import com.threadflow.milestone.TemplateMilestone;
+import com.threadflow.order.audit.OrderAuditService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +24,7 @@ class OrderServiceTest {
     private OrderRepository orders;
     private BuyerRepository buyers;
     private MilestoneTemplateRepository templates;
+    private OrderAuditService auditService;
     private OrderService service;
 
     @BeforeEach
@@ -30,7 +32,8 @@ class OrderServiceTest {
         orders = mock(OrderRepository.class);
         buyers = mock(BuyerRepository.class);
         templates = mock(MilestoneTemplateRepository.class);
-        service = new OrderService(orders, buyers, templates, mock(SupervisorOrderAccessService.class));
+        auditService = mock(OrderAuditService.class);
+        service = new OrderService(orders, buyers, templates, mock(SupervisorOrderAccessService.class), auditService);
     }
 
     @Test

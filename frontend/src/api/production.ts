@@ -5,7 +5,7 @@ export type AvailableOrder = {
   productionUnit: { id: number; name: string; code: string; description?: string | null; active: boolean } | null;
   assignmentSource: 'UNIT' | 'DIRECT' | 'BOTH'; milestones: ProductionMilestone[];
 };
-export type ProductionPhoto = { id: number; originalFilename: string; contentType: string; fileSize: number };
+export type ProductionPhoto = { id: number; originalFilename: string; contentType: string; fileSize: number; approvedForBuyer?: boolean };
 export type ProductionUpdate = {
   id: number; orderId: number; poNumber: string; milestoneId: number; milestoneName: string;
   supervisorId: number; supervisorEmail: string; productionDate: string; completedQuantity: number;
@@ -69,4 +69,6 @@ export const productionApi = {
     return body as ProductionUpdate;
   },
   photoUrl(photoId: number) { return `${API_BASE}/api/v1/production/photos/${photoId}`; },
+  setPhotoBuyerApproval: (photoId: number, approved: boolean) =>
+    jsonRequest<void>(`/api/v1/production/photos/${photoId}/buyer-approval?approved=${approved}`, { method: 'PUT' }),
 };

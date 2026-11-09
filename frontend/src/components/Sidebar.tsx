@@ -1,4 +1,4 @@
-import { AlertCircle, Boxes, Factory, LayoutDashboard, LogOut } from 'lucide-react';
+import { AlertCircle, Boxes, Factory, Globe, LayoutDashboard, LogOut } from 'lucide-react';
 import type { UserRole } from '../auth/auth';
 
 const navItems = [
@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Orders', icon: Boxes, target: '#orders' },
   { label: 'Issues', icon: AlertCircle, target: '#issues' },
   { label: 'Production', icon: Factory, target: '#production' },
+  { label: 'Buyer Portal', icon: Globe, target: '#buyer' },
 ];
 
 export function Sidebar({

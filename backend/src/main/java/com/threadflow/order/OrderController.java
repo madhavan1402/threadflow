@@ -15,7 +15,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/orders")
 public class OrderController {
     private final OrderService service;
-    public OrderController(OrderService service) { this.service = service; }
+    private final com.threadflow.order.audit.OrderAuditService auditService;
+
+    public OrderController(OrderService service, com.threadflow.order.audit.OrderAuditService auditService) {
+        this.service = service;
+        this.auditService = auditService;
+    }
 
     @GetMapping
     public Page<OrderDtos.OrderResponse> list(@RequestParam(required=false) String search,
@@ -34,8 +39,22 @@ public class OrderController {
     }
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MERCHANDISER')")
-    public OrderDtos.OrderResponse update(@PathVariable Long id, @Valid @RequestBody OrderDtos.UpdateOrderRequest request) {
-        return service.update(id, request);
+    public OrderDtos.OrderResponse update(@PathVariable Long id, @Valid @RequestBody OrderDtos.UpdateOrderRequest request,
+                                          Authentication authentication) {
+        return service.update(id, request, authentication);
+    }
+    @PutMapping("/{id}/ex-factory-date")
+    @PreAuthorize("hasRole('MERCHANDISER')")
+    public OrderDtos.OrderResponse changeExFactoryDate(@PathVariable Long id,
+            @Valid @RequestBody com.threadflow.order.audit.OrderAuditDtos.DateChangeRequest request,
+            Authentication authentication) {
+        return service.changeExFactoryDate(id, request, authentication);
+    }
+    @GetMapping("/{id}/audit-history")
+    @PreAuthorize("hasRole('MERCHANDISER')")
+    public List<com.threadflow.order.audit.OrderAuditDtos.DateAuditResponse> auditHistory(
+            @PathVariable Long id, Authentication authentication) {
+        return auditService.getAuditHistory(id, authentication);
     }
     @GetMapping("/{id}/milestones")
     public List<OrderDtos.MilestoneResponse> milestones(@PathVariable Long id, Authentication authentication) {

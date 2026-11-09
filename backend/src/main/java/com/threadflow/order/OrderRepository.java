@@ -17,6 +17,8 @@ public interface OrderRepository extends JpaRepository<ProductionOrder, Long>, J
     @EntityGraph(attributePaths = {"buyer", "milestones", "productionUnit"})
     List<ProductionOrder> findDistinctByIdIn(Collection<Long> ids);
     List<ProductionOrder> findByStatusNot(ProductionOrder.Status status);
+    @EntityGraph(attributePaths = {"buyer", "milestones", "productionUnit"})
+    List<ProductionOrder> findByBuyer_Id(Long buyerId);
     @Query("""
             select distinct o.id from ProductionOrder o
             where exists (select a.id from SupervisorOrderAssignment a

@@ -48,6 +48,10 @@ public class ProductionPhotoStorage {
         catch (IOException exception) { throw new IllegalArgumentException("Photo could not be read"); }
     }
 
+    public org.springframework.core.io.Resource loadAsResource(String storagePath) {
+        return new org.springframework.core.io.FileSystemResource(Path.of(storagePath));
+    }
+
     public void delete(String storagePath) {
         try { Files.deleteIfExists(Path.of(storagePath)); }
         catch (IOException ignored) { }

@@ -44,6 +44,9 @@ public class ProductionOrder {
         this.buyer = buyer; this.styleName = styleName; this.productDescription = productDescription;
         this.totalQuantity = totalQuantity; this.exFactoryDate = exFactoryDate; this.status = status;
     }
+    public void updateExFactoryDate(LocalDate newExFactoryDate) {
+        this.exFactoryDate = newExFactoryDate;
+    }
     public void assignProductionUnit(ProductionUnit productionUnit) { this.productionUnit = productionUnit; }
     public void addVariant(OrderVariant variant) { variants.add(variant); }
     public void addMilestone(OrderMilestone milestone) { milestones.add(milestone); }

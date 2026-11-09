@@ -71,4 +71,14 @@ public class ProductionController {
                 .contentType(MediaType.parseMediaType(photo.getContentType()))
                 .body(service.photoBytes(photo));
     }
+
+    @PutMapping("/photos/{photoId}/buyer-approval")
+    @PreAuthorize("hasRole('MERCHANDISER')")
+    public ResponseEntity<Void> setPhotoBuyerApproval(
+            @PathVariable Long photoId,
+            @RequestParam boolean approved,
+            Authentication authentication) {
+        service.setPhotoBuyerApproval(photoId, approved, authentication);
+        return ResponseEntity.noContent().build();
+    }
 }

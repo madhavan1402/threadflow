@@ -184,11 +184,22 @@ public class ProductionService {
     }
     private ProductionDtos.UpdateResponse toResponse(ProductionUpdate update) {
         List<ProductionDtos.PhotoResponse> photos = update.getPhotos().stream()
-                .map(p -> new ProductionDtos.PhotoResponse(p.getId(), p.getOriginalFilename(), p.getContentType(), p.getFileSize())).toList();
+                .map(p -> new ProductionDtos.PhotoResponse(p.getId(), p.getOriginalFilename(), p.getContentType(), p.getFileSize(), p.isApprovedForBuyer())).toList();
         return new ProductionDtos.UpdateResponse(update.getId(), update.getOrder().getId(), update.getOrder().getPoNumber(),
                 update.getMilestone().getId(), update.getMilestone().getMilestoneName(),
                 update.getSupervisor().getId(), update.getSupervisor().getEmail(), update.getProductionDate(),
                 update.getCompletedQuantity(), update.getIssueNote(), update.getCreatedAt(), update.getUpdatedAt(), photos);
     }
+
+    @Transactional
+    public void setPhotoBuyerApproval(Long photoId, boolean approved, Authentication authentication) {
+        requireMerchandiser(authentication);
+        User merchandiser = (User) authentication.getPrincipal();
+        ProductionPhoto photo = photoRepository.findById(photoId)
+                .orElseThrow(() -> new IllegalArgumentException("Photo not found: " + photoId));
+        photo.setBuyerApproval(approved, merchandiser);
+        photoRepository.save(photo);
+    }
+
     public byte[] photoBytes(ProductionPhoto photo) { return storage.read(photo.getStoragePath()); }
 }

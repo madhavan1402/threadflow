@@ -9,6 +9,11 @@ import com.threadflow.order.OrderRepository;
 import com.threadflow.order.OrderVariant;
 import com.threadflow.order.ProductionOrder;
 import com.threadflow.order.OrderMilestone;
+import com.threadflow.buyer.portal.BuyerAccessToken;
+import com.threadflow.buyer.portal.BuyerAccessTokenRepository;
+import com.threadflow.order.warning.BuyerDelayWarning;
+import com.threadflow.order.warning.BuyerDelayWarningRepository;
+import com.threadflow.order.warning.BuyerDelayWarningStatus;
 import com.threadflow.production.SupervisorOrderAssignment;
 import com.threadflow.production.SupervisorOrderAssignmentRepository;
 import com.threadflow.production.ProductionUnit;
@@ -16,7 +21,9 @@ import com.threadflow.production.ProductionUnitRepository;
 import com.threadflow.production.SupervisorUnitAssignment;
 import com.threadflow.production.SupervisorUnitAssignmentRepository;
 import com.threadflow.user.UserRepository;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -34,17 +41,23 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
     private final OrderRepository orders;
     private final UserRepository users;
     private final SupervisorOrderAssignmentRepository assignments;
-        private final ProductionUnitRepository units;
-        private final SupervisorUnitAssignmentRepository unitAssignments;
+    private final ProductionUnitRepository units;
+    private final SupervisorUnitAssignmentRepository unitAssignments;
+    private final BuyerAccessTokenRepository buyerTokens;
+    private final BuyerDelayWarningRepository buyerWarnings;
 
     public LocalOrderSampleInitializer(BuyerRepository buyers, MilestoneTemplateRepository templates,
                                        OrderRepository orders, UserRepository users,
                                        SupervisorOrderAssignmentRepository assignments,
                                        ProductionUnitRepository units,
-                                       SupervisorUnitAssignmentRepository unitAssignments) {
+                                       SupervisorUnitAssignmentRepository unitAssignments,
+                                       BuyerAccessTokenRepository buyerTokens,
+                                       BuyerDelayWarningRepository buyerWarnings) {
         this.buyers = buyers; this.templates = templates; this.orders = orders;
         this.users = users; this.assignments = assignments; this.units = units;
         this.unitAssignments = unitAssignments;
+        this.buyerTokens = buyerTokens;
+        this.buyerWarnings = buyerWarnings;
     }
 
     @Override
@@ -95,6 +108,45 @@ public class LocalOrderSampleInitializer implements ApplicationRunner {
                     .filter(assignment -> !List.of("B-PO-88213", "B-PO-88240", "C-PO-0488")
                             .contains(assignment.getOrder().getPoNumber()))
                     .forEach(assignment -> assignment.revoke(java.time.Instant.now()));
+        });
+
+        // Seed Buyer access tokens for demo / local testing
+        if (buyerTokens.findByTokenValue("buyer-token-company-b").isEmpty()) {
+            buyerTokens.save(new BuyerAccessToken(
+                    buyerB,
+                    "buyer-token-company-b",
+                    "Company B Portal Access",
+                    Instant.now().plus(365, ChronoUnit.DAYS)
+            ));
+        }
+        if (buyerTokens.findByTokenValue("buyer-token-company-c").isEmpty()) {
+            buyerTokens.save(new BuyerAccessToken(
+                    buyerC,
+                    "buyer-token-company-c",
+                    "Company C Portal Access",
+                    Instant.now().plus(365, ChronoUnit.DAYS)
+            ));
+        }
+
+        // Seed sample confirmed delay warning for B-PO-88240 if none exists
+        orders.findByPoNumberIgnoreCase("B-PO-88240").ifPresent(order -> {
+            List<BuyerDelayWarning> existingWarnings = buyerWarnings
+                    .findByOrder_IdOrderByCreatedAtDesc(order.getId());
+            if (existingWarnings.isEmpty()) {
+                BuyerDelayWarning warning = new BuyerDelayWarning(
+                        order,
+                        "CRITICAL",
+                        "Predicted 6 days delay due to yarn allocation delay",
+                        "Air freight split shipment or add weekend overtime"
+                );
+                users.findByEmailIgnoreCase("merchandiser@local.threadflow").ifPresent(merchandiser -> {
+                    warning.confirm(
+                            "Production on B-PO-88240 is experiencing a 6-day delay due to raw yarn lot clearance. Weekend overtime is active in Stitching Unit 2 to mitigate the schedule.",
+                            merchandiser
+                    );
+                    buyerWarnings.save(warning);
+                });
+            }
         });
     }
 

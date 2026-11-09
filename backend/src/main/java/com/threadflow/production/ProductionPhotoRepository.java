@@ -1,5 +1,10 @@
 package com.threadflow.production;
 
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ProductionPhotoRepository extends JpaRepository<ProductionPhoto, Long> {}
+public interface ProductionPhotoRepository extends JpaRepository<ProductionPhoto, Long> {
+    List<ProductionPhoto> findByProductionUpdate_Order_IdAndApprovedForBuyerTrueOrderByCreatedAtDesc(Long orderId);
+    Optional<ProductionPhoto> findByIdAndApprovedForBuyerTrue(Long id);
+}

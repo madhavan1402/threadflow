@@ -14,7 +14,11 @@ public class ProductionDtos {
             @Size(max=5000) String issueNote,
             @NotBlank @Size(max=64) String idempotencyKey
     ) {}
-    public record PhotoResponse(Long id, String originalFilename, String contentType, Long fileSize) {}
+    public record PhotoResponse(Long id, String originalFilename, String contentType, Long fileSize, Boolean approvedForBuyer) {
+        public PhotoResponse(Long id, String originalFilename, String contentType, Long fileSize) {
+            this(id, originalFilename, contentType, fileSize, false);
+        }
+    }
     public record UpdateResponse(
             Long id, Long orderId, String poNumber, Long milestoneId, String milestoneName,
             Long supervisorId, String supervisorEmail, LocalDate productionDate,
